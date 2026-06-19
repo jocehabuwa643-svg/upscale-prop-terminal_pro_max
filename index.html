@@ -5,16 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>UPSCALE.TRADE - PROP TERMINAL PRO MAX (1H EDITION)</title>
     
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script>
-        // Force Babel to use the "classic" runtime for React to avoid jsx-runtime import errors
-        Babel.registerPreset('react-classic', {
-            presets: [[Babel.availablePresets['react'], { runtime: 'classic' }]]
-        });
+    <!-- Native ESM Import Map -->
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime"
+        }
+    }
     </script>
+
+    <!-- External Scripts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
 
     <style>
@@ -201,8 +205,9 @@
 
     <div id="root"></div>
 
-    <script type="text/babel" data-presets="env,react-classic">
-        const { useState, useEffect, useRef, useCallback, useMemo } = React;
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+        import { createRoot } from 'react-dom/client';
 
         const suppressResizeObserverErrors = () => {
             window.addEventListener('error', e => {
@@ -324,43 +329,60 @@
             const candleRange = currCandle.high - currCandle.low;
             if (candleRange === 0) return { valid: false, score: 0 };
 
+            // Оценка объёма: средний за последние 20 свечей для подтверждения
+            let sumVol = 0;
+            for(let i=1; i<=20; i++) sumVol += data[evalIdx-i].volume;
+            const avgVol = sumVol / 20;
+            
+            // Сигнал требует повышенного объёма
+            const isHighVolume = currCandle.volume > avgVol * 1.1 || prevCandle.volume > avgVol * 1.1;
+
             const upperWick = currCandle.high - Math.max(currCandle.open, currCandle.close);
             const lowerWick = Math.min(currCandle.open, currCandle.close) - currCandle.low;
             const isRedCandle = currCandle.close < currCandle.open;
             const isGreenCandle = currCandle.close > currCandle.open;
 
-            const sweptTop = currCandle.high >= (cUpper - cAtr * 0.5); // More sensitive for 1H
-            const sweptBot = currCandle.low <= (cLower + cAtr * 0.5);
+            // НАСТОЯЩИЙ СЪЕМ ЛИКВИДНОСТИ: Тень обязательно должна выходить за пределы зон
+            const sweptTop = currCandle.high > cUpper || prevCandle.high > cUpper;
+            const sweptBot = currCandle.low < cLower || prevCandle.low < cLower;
 
-            const isStrongRejectionShort = sweptTop && (isRedCandle || (upperWick / candleRange) > 0.35);
-            const isStrongRejectionLong = sweptBot && (isGreenCandle || (lowerWick / candleRange) > 0.35);
+            // Строгое подтверждение структуры (отторжение)
+            const isStrongRejectionShort = sweptTop && isHighVolume && (
+                (isRedCandle && currCandle.close < prevCandle.high) || 
+                (upperWick / candleRange > 0.4 && currCandle.close < cUpper)
+            );
 
-            let isLong = false; let isShort = false; let signalType = ''; let baseScore = 50;
+            const isStrongRejectionLong = sweptBot && isHighVolume && (
+                (isGreenCandle && currCandle.close > prevCandle.low) ||
+                (lowerWick / candleRange > 0.4 && currCandle.close > cLower)
+            );
 
-            if (isStrongRejectionShort) { isShort = true; signalType = 'SMC Liquidity Sweep (1H)'; baseScore += 25; }
-            if (isStrongRejectionLong) { isLong = true; signalType = 'SMC Liquidity Sweep (1H)'; baseScore += 25; }
+            let isLong = false; let isShort = false; let signalType = ''; let baseScore = 60;
 
-            // Reverse Strategy Enforcement (Must flip direction if forced)
+            if (isStrongRejectionShort) { isShort = true; signalType = 'SMC Real Sweep (1H)'; baseScore += 25; }
+            if (isStrongRejectionLong) { isLong = true; signalType = 'SMC Real Sweep (1H)'; baseScore += 25; }
+
+            // Контроль реверс-стратегии
             if (engineState.forcedDirection === 'LONG' && isShort) return { valid: false, score: 0 };
             if (engineState.forcedDirection === 'SHORT' && isLong) return { valid: false, score: 0 };
 
             if (!isLong && !isShort) return { valid: false, score: 0 };
             if (isLong && isShort) return { valid: false, score: 0 };
 
-            let qScore = baseScore + Math.floor(Math.random() * 20);
-            if (qScore < 60) return { valid: false, score: qScore };
+            let qScore = baseScore + Math.floor(Math.random() * 15);
+            if (qScore < 75) return { valid: false, score: qScore }; // Строгий порог входа
 
             const entryPrice = currCandle.close;
+            // SL выставляется за экстремум + небольшой буфер
             let rawSlPrice = isLong ? Math.min(currCandle.low, prevCandle.low) - (cAtr * 0.1) : Math.max(currCandle.high, prevCandle.high) + (cAtr * 0.1);
             
-            // Limit SL max distance to 1.5% to avoid liquidation risk on 1H
             const slDistancePercent = Math.abs(entryPrice - rawSlPrice) / entryPrice;
-            if (slDistancePercent > 0.015) return { valid: false, score: 0 }; 
+            if (slDistancePercent > 0.02) return { valid: false, score: 0 }; // Отклоняем, если SL шире 2%
             
             let slPrice = rawSlPrice;
-            if (slDistancePercent < 0.001) slPrice = isLong ? entryPrice * 0.999 : entryPrice * 1.001; 
+            if (slDistancePercent < 0.002) slPrice = isLong ? entryPrice * 0.998 : entryPrice * 1.002; // Минимальный SL 0.2%
 
-            // Strict TP Levels (0.9%, 1.0%, 1.1%) as requested
+            // Четкие уровни TP (0.9%, 1.0%, 1.1%)
             const tp1Price = isLong ? entryPrice * 1.009 : entryPrice * 0.991;
             const tp2Price = isLong ? entryPrice * 1.010 : entryPrice * 0.990;
             const tp3Price = isLong ? entryPrice * 1.011 : entryPrice * 0.989;
@@ -906,7 +928,7 @@
 
                 let histTrades = []; let bBalance = propBalanceRef.current;
                 const startIdx = Math.max(50, data1h.length - 100); // Backtest last ~100 hours
-                let btEngineState = { forcedDirection: null, riskMultiplier: 1.0 };
+                let btEngineState = { forcedDirection: null, riskMultiplier: 1.0, consecutiveLosses: 0 };
 
                 for (let i = startIdx; i < data1h.length - 2; i++) {
                     // Yield to keep UI responsive
@@ -938,13 +960,22 @@
                         trade.status = 'CLOSED'; trade.result = result; trade.pnl = pnlAmount; trade.closeTime = closeTime; trade.closePrice = closePrice;
                         histTrades.push(trade); bBalance += pnlAmount;
                         
-                        // Strict Strategy Reversal on Loss
+                        // Логика Martingale (1.5x) и Реверса для Backtest
                         if (result === 'LOSS') {
-                            btEngineState.forcedDirection = trade.isLong ? 'SHORT' : 'LONG';
-                            btEngineState.riskMultiplier = 1.2;
+                            btEngineState.consecutiveLosses += 1;
+                            if (btEngineState.consecutiveLosses === 1) {
+                                btEngineState.forcedDirection = trade.isLong ? 'SHORT' : 'LONG';
+                                btEngineState.riskMultiplier = 1.5;
+                            } else {
+                                // 2+ убытка: сброс риска после применения штрафа
+                                btEngineState.forcedDirection = null;
+                                btEngineState.riskMultiplier = 1.0;
+                                btEngineState.consecutiveLosses = 0; 
+                            }
                         } else {
                             btEngineState.forcedDirection = null;
                             btEngineState.riskMultiplier = 1.0;
+                            btEngineState.consecutiveLosses = 0;
                         }
                         i += 2; // Jump forward
                     }
@@ -1139,17 +1170,18 @@
                                     
                                     if (engineStateRef.current.consecutiveLosses === 1) {
                                         engineStateRef.current.forcedDirection = activeT.isLong ? 'SHORT' : 'LONG';
-                                        engineStateRef.current.riskMultiplier = 1.2; 
-                                        enqueueSpeech('Сделка закрыта по стоп-лоссу. Активирую реверс-систему для следующего сигнала.', 'close-loss1', 0);
+                                        engineStateRef.current.riskMultiplier = 1.5; 
+                                        enqueueSpeech('Сделка закрыта по стоп-лоссу. Активирую реверс и увеличиваю риск по Мартингейлу в полтора раза.', 'close-loss1', 0);
                                     } else if (engineStateRef.current.consecutiveLosses >= 2) {
                                         engineStateRef.current.securityPauseUntil = Math.floor(Date.now()/1000) + (30 * 60); // 30 mins
                                         engineStateRef.current.forcedDirection = null; 
-                                        engineStateRef.current.riskMultiplier = 1.0; 
-                                        enqueueSpeech('Два убытка подряд. Рынок нестабилен. Защитная блокировка сканера на 30 минут.', 'close-loss2', 0);
+                                        engineStateRef.current.riskMultiplier = 1.0; // Сброс множителя риска
+                                        engineStateRef.current.consecutiveLosses = 0; // Сброс счетчика убытков
+                                        enqueueSpeech('Два убытка подряд. Риск сброшен до базового. Активирована защитная блокировка на 30 минут.', 'close-loss2', 0);
                                     }
                                 } else {
                                     playSound('win');
-                                    enqueueSpeech('Целевая прибыль достигнута. Сделка успешно закрыта.', `win-${Date.now()}`, 0);
+                                    enqueueSpeech('Целевая прибыль достигнута. Риск-менеджмент возвращен к базовым настройкам.', `win-${Date.now()}`, 0);
                                     engineStateRef.current.consecutiveLosses = 0;
                                     engineStateRef.current.riskMultiplier = 1.0; 
                                     engineStateRef.current.forcedDirection = null;
@@ -1387,7 +1419,7 @@
             );
         };
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
+        const root = createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
 </body>
