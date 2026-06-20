@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>UPSCALE.TRADE - PROP TERMINAL PRO MAX (1H EDITION)</title>
+    <title>UPSCALE.TRADE - PROP TERMINAL PRO MAX (HYBRID EDITION)</title>
     
     <!-- СТАБИЛЬНАЯ ЗАГРУЗКА REACT (UMD) - Замена ImportMap для работы Preview -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -246,7 +246,7 @@
         // Constants
         const INITIAL_BALANCE = 5000;
         const BASE_RISK_PERCENT = 0.0075; // 0.75%
-        const MAIN_TIMEFRAME = '1H'; // Primary timeframe requested
+        const MAIN_TIMEFRAME = 'HYBRID 1H/15M'; // Updated to hybrid timeframe
 
         const fetchWithTimeout = async (url, options = {}) => {
             const { timeout = 4000 } = options;
@@ -317,93 +317,106 @@
             return res;
         }
 
-        function evaluateSignalEngine(data, evalIdx, liqMap, atrMap, engineState, timeframeLabel) {
-            if (evalIdx < 50) return { valid: false, score: 0 };
+        // НОВАЯ ЛОГИКА: Гибридная валидация (Зоны с 1H, вход с 15M)
+        function evaluateSignalEngineHybrid(data15m, evalIdx, liqMap1H, atrMap1H, engineState) {
+            if (evalIdx < 20) return { valid: false, score: 0 };
 
-            const currCandle = data[evalIdx];
-            const prevCandle = data[evalIdx - 1];
-            const currTime = currCandle.time;
+            const curr15m = data15m[evalIdx];
+            const prev15m = data15m[evalIdx - 1];
             
-            const zones = liqMap.get(currTime);
-            const cAtr = atrMap.get(currTime);
+            // Получаем метку времени начала часа для свечи 15M, чтобы вытащить данные 1H
+            let t1H = curr15m.time - (curr15m.time % 3600);
             
+            let zones = liqMap1H.get(t1H);
+            let cAtr = atrMap1H.get(t1H);
+            
+            if (!zones || !cAtr) {
+                // Ищем ближайшую прошлую 1H свечу, если точного совпадения нет (например, из-за пропусков)
+                let latest1H = 0;
+                for (let t of liqMap1H.keys()) {
+                    if (t <= curr15m.time && t > latest1H) latest1H = t;
+                }
+                zones = liqMap1H.get(latest1H);
+                cAtr = atrMap1H.get(latest1H);
+            }
+
             if (!zones || !cAtr) return { valid: false, score: 0 };
 
             const cUpper = zones.upper;
             const cLower = zones.lower;
-            
-            const candleRange = currCandle.high - currCandle.low;
-            if (candleRange === 0) return { valid: false, score: 0 };
 
-            // Оценка объёма: средний за последние 20 свечей для подтверждения
+            // Расстояние от закрытия 15M до границ 1H зон
+            const distTop = cUpper - curr15m.close;
+            const distBot = curr15m.close - cLower;
+            
+            // Условие Confluence: Цена должна находиться в зоне интереса 1H
+            const inResZone = distTop > -cAtr * 0.8 && distTop < cAtr * 1.5;
+            const inSupZone = distBot > -cAtr * 0.8 && distBot < cAtr * 1.5;
+            
+            if (!inResZone && !inSupZone) return { valid: false, score: 0 };
+
+            // Объём на 15M
             let sumVol = 0;
-            for(let i=1; i<=20; i++) sumVol += data[evalIdx-i].volume;
+            for(let i=1; i<=20; i++) sumVol += data15m[evalIdx-i].volume;
             const avgVol = sumVol / 20;
             
-            // СТРОГОЕ ПРАВИЛО 3: Объём существенно выше среднего (минимум в 1.35 раза)
-            const isHighVolume = currCandle.volume > avgVol * 1.35;
+            // Более мягкое условие объёма для 15M (вместо 1.35x используем 1.2x)
+            const isHighVolume = curr15m.volume > avgVol * 1.2;
 
-            const isRedCandle = currCandle.close < currCandle.open;
-            const isGreenCandle = currCandle.close > currCandle.open;
+            const isRedCandle = curr15m.close < curr15m.open;
+            const isGreenCandle = curr15m.close > curr15m.open;
 
-            // СТРОГОЕ ПРАВИЛО 1: Реальное снятие ликвидности (выход за пределы пула)
-            const sweptTop = currCandle.high > cUpper;
-            const sweptBot = currCandle.low < cLower;
+            // Съем ликвидности (Sweep) 1H зон на графике 15M
+            const sweptTop = curr15m.high > cUpper || prev15m.high > cUpper;
+            const sweptBot = curr15m.low < cLower || prev15m.low < cLower;
 
-            // СТРОГОЕ ПРАВИЛО 2: Закрытие свечи строго за уровнем (подтверждение отторжения)
-            const closeBelowLevel = currCandle.close < cUpper;
-            const closeAboveLevel = currCandle.close > cLower;
+            // Подтверждение отторжения (закрытие внутри/ниже уровня)
+            const closeBelowLevel = curr15m.close < cUpper;
+            const closeAboveLevel = curr15m.close > cLower;
 
-            // СТРОГОЕ ПРАВИЛО 4: Break of Structure (BOS)
-            // Шорт: закрытие ниже минимума предыдущей свечи
-            const bosShort = currCandle.close < prevCandle.low;
-            // Лонг: закрытие выше максимума предыдущей свечи
-            const bosLong = currCandle.close > prevCandle.high;
+            // Break of Structure (BOS) на 15M (структура младшего таймфрейма ломается)
+            const bosShort = curr15m.close < prev15m.low;
+            const bosLong = curr15m.close > prev15m.high;
 
-            // СТРОГОЕ ПРАВИЛО 5: Минимальное расстояние от границы зоны до точки входа >= 0.8 ATR
-            const distFromTop = cUpper - currCandle.close; 
-            const distFromBot = currCandle.close - cLower; 
-            const validDistShort = distFromTop >= cAtr * 0.8;
-            const validDistLong = distFromBot >= cAtr * 0.8;
-
-            // Комбинируем все 5 строгих условий
-            const isStrongRejectionShort = sweptTop && isHighVolume && closeBelowLevel && bosShort && validDistShort && isRedCandle;
-            const isStrongRejectionLong = sweptBot && isHighVolume && closeAboveLevel && bosLong && validDistLong && isGreenCandle;
+            // Комбинированный гибридный сигнал
+            const isStrongRejectionShort = inResZone && sweptTop && isHighVolume && closeBelowLevel && bosShort && isRedCandle;
+            const isStrongRejectionLong = inSupZone && sweptBot && isHighVolume && closeAboveLevel && bosLong && isGreenCandle;
 
             let isLong = false; let isShort = false; let signalType = ''; let baseScore = 60;
 
-            if (isStrongRejectionShort) { isShort = true; signalType = 'SMC Strict Sweep (1H)'; baseScore += 30; }
-            if (isStrongRejectionLong) { isLong = true; signalType = 'SMC Strict Sweep (1H)'; baseScore += 30; }
+            if (isStrongRejectionShort) { isShort = true; signalType = 'HYBRID SWEEP (1H+15M)'; baseScore += 25; }
+            if (isStrongRejectionLong) { isLong = true; signalType = 'HYBRID SWEEP (1H+15M)'; baseScore += 25; }
 
             // Контроль реверс-стратегии
             if (engineState.forcedDirection === 'LONG' && isShort) return { valid: false, score: 0 };
             if (engineState.forcedDirection === 'SHORT' && isLong) return { valid: false, score: 0 };
 
             if (!isLong && !isShort) return { valid: false, score: 0 };
-            if (isLong && isShort) return { valid: false, score: 0 };
 
-            let qScore = baseScore + Math.floor(Math.random() * 10);
-            if (qScore < 85) return { valid: false, score: qScore }; // Очень строгий порог входа
+            // Более лояльный порог качества для 15M (было 85, стало 75)
+            let qScore = baseScore + Math.floor(Math.random() * 15);
+            if (qScore < 75) return { valid: false, score: qScore }; 
 
-            const entryPrice = currCandle.close;
-            // SL выставляется за экстремум + небольшой буфер
-            let rawSlPrice = isLong ? Math.min(currCandle.low, prevCandle.low) - (cAtr * 0.1) : Math.max(currCandle.high, prevCandle.high) + (cAtr * 0.1);
+            const entryPrice = curr15m.close;
+            // SL за экстремум 15M с буфером от ATR 1H для надежности
+            let rawSlPrice = isLong ? Math.min(curr15m.low, prev15m.low) - (cAtr * 0.15) : Math.max(curr15m.high, prev15m.high) + (cAtr * 0.15);
             
             const slDistancePercent = Math.abs(entryPrice - rawSlPrice) / entryPrice;
-            if (slDistancePercent > 0.02) return { valid: false, score: 0 }; // Отклоняем, если SL шире 2%
+            if (slDistancePercent > 0.02) return { valid: false, score: 0 }; 
             
             let slPrice = rawSlPrice;
-            if (slDistancePercent < 0.002) slPrice = isLong ? entryPrice * 0.998 : entryPrice * 1.002; // Минимальный SL 0.2%
+            if (slDistancePercent < 0.002) slPrice = isLong ? entryPrice * 0.998 : entryPrice * 1.002; 
 
-            // Четкие уровни TP (0.9%, 1.0%, 1.1%)
-            const tp1Price = isLong ? entryPrice * 1.009 : entryPrice * 0.991;
-            const tp2Price = isLong ? entryPrice * 1.010 : entryPrice * 0.990;
-            const tp3Price = isLong ? entryPrice * 1.011 : entryPrice * 0.989;
+            // TP рассчитывается исходя из RR
+            const riskDist = Math.abs(entryPrice - slPrice);
+            const tp1Price = isLong ? entryPrice + riskDist * 1.5 : entryPrice - riskDist * 1.5;
+            const tp2Price = isLong ? entryPrice + riskDist * 2.0 : entryPrice - riskDist * 2.0;
+            const tp3Price = isLong ? entryPrice + riskDist * 3.0 : entryPrice - riskDist * 3.0;
 
             return { 
                 valid: true, isLong, isShort, signalType, score: Math.min(100, qScore), 
-                signalTime: currTime, entryPrice, slPrice, tp1Price, tp2Price, tp3Price,
-                tf: timeframeLabel, cUpper, cLower, logicalIndex: evalIdx
+                signalTime: curr15m.time, entryPrice, slPrice, tp1Price, tp2Price, tp3Price,
+                tf: '15M', cUpper, cLower, logicalIndex: evalIdx
             };
         }
 
@@ -635,8 +648,8 @@
                     <div className={`zone-capsule ${zoneInfo?.type === 'RESISTANCE' ? 'zone-capsule-res' : 'zone-capsule-sup'}`}>
                         {zoneInfo && isFocusMode && (
                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center w-[140px]">
-                                <div className="text-[11px] font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,1)] tracking-widest border-b border-current uppercase mb-1 pb-1">ЗОНА: {zoneInfo.type}</div>
-                                <div className="text-[9px] font-bold text-slate-300">ФОКУС: 1H ТАЙМФРЕЙМ</div>
+                                <div className="text-[11px] font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,1)] tracking-widest border-b border-current uppercase mb-1 pb-1">ЗОНА 1H: {zoneInfo.type}</div>
+                                <div className="text-[9px] font-bold text-slate-300">ФОКУС ПАТТЕРНА: 15M</div>
                             </div>
                         )}
                     </div>
@@ -659,7 +672,7 @@
                         >
                             <div className="flex justify-between items-center border-b border-slate-700/80 pb-2 mb-3">
                                 <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded shadow-inner ${hoveredTrade.isLong ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-500/30' : 'bg-rose-900/60 text-rose-300 border border-rose-500/30'}`}>
-                                    {hoveredTrade.isLong ? 'LONG 1H' : 'SHORT 1H'}
+                                    {hoveredTrade.isLong ? 'LONG 15M' : 'SHORT 15M'}
                                 </span>
                                 <span className={`text-xs font-black ${hoveredTrade.result?.includes('WIN') ? 'text-emerald-400 drop-shadow-[0_0_5px_rgba(52,211,153,0.8)]' : hoveredTrade.result === 'LOSS' ? 'text-rose-400 drop-shadow-[0_0_5px_rgba(225,29,72,0.8)]' : 'text-amber-400 animate-pulse'}`}>
                                     {hoveredTrade.result?.includes('WIN') ? 'ПРИБЫЛЬ' : hoveredTrade.result === 'LOSS' ? 'УБЫТОК' : 'АКТИВНА'}
@@ -698,7 +711,7 @@
             const [isStarted, setIsStarted] = useState(false);
             const [appPhase, setAppPhase] = useState('СИСТЕМА ЗАГРУЖАЕТСЯ...');
             const [appState, setAppState] = useState('INIT'); 
-            const [currentTF] = useState(MAIN_TIMEFRAME); // Locked to 1H
+            const [currentTF, setCurrentTF] = useState(MAIN_TIMEFRAME); 
             
             const [tradesHistory, setTradesHistory] = useState([]);
             const [activeTrade, setActiveTrade] = useState(null);
@@ -709,7 +722,7 @@
             const [totalPnL, setTotalPnL] = useState(0);
             
             const [prepCountdown, setPrepCountdown] = useState(null);
-            const [slCountdown, setSlCountdown] = useState(null); // SL Warning timer
+            const [slCountdown, setSlCountdown] = useState(null); 
             
             const [currentStake, setCurrentStake] = useState(INITIAL_BALANCE * BASE_RISK_PERCENT);
             const [metrics, setMetrics] = useState({ strength: 88, acc: 95, vol: 70, liq: 65 });
@@ -914,9 +927,9 @@
             const runEngine = async () => {
                 if (engineActive.current) return; engineActive.current = true;
                 
-                // --- 1. BACKTEST PHASE (1H) ---
+                // --- 1. BACKTEST PHASE (HYBRID 1H + 15M) ---
                 setAppState('BACKTEST');
-                setAppPhase('БЭКТЕСТ И ГЕНЕРАЦИЯ ИСТОРИИ (1H ТАЙМФРЕЙМ)...');
+                setAppPhase('БЭКТЕСТ И ГЕНЕРАЦИЯ ИСТОРИИ (15M / ЗОНЫ 1H)...');
                 
                 const fetchWithRetry = async (sym, cnt, int) => {
                     while(engineActive.current) {
@@ -927,44 +940,48 @@
                     }
                 };
 
-                // Fetch ~300 1H candles (~12.5 days) for thorough indicator priming and backtesting the last 48-72h
+                // Запрашиваем 1H для зон (300 свечей = 12.5 дней) и 15M для входов (1000 свечей = 10.4 дней)
                 const data1h = await fetchWithRetry('BTCUSDT', 300, '1h');
+                const data15m = await fetchWithRetry('BTCUSDT', 1000, '15m');
+                
                 await initChart();
                 if (candleSeries.current) {
-                    candleSeries.current.setData(data1h);
+                    candleSeries.current.setData(data15m); // Отображаем 15M на основном графике
                     setTimeout(() => chartInstance.current.timeScale().fitContent(), 100);
                 }
 
-                const liq = calcLiquidityZones(data1h, 30);
-                const atr = calcATRSeries(data1h, 14);
-                const lMap = new Map(liq.map(i => [i.time, {upper: i.upper, lower: i.lower}]));
-                const aMap = new Map(atr.map(i => [i.time, i.value]));
+                // Строим карты зон и ATR строго по 1H
+                const liq1H = calcLiquidityZones(data1h, 30);
+                const atr1H = calcATRSeries(data1h, 14);
+                const lMap1H = new Map(liq1H.map(i => [i.time, {upper: i.upper, lower: i.lower}]));
+                const aMap1H = new Map(atr1H.map(i => [i.time, i.value]));
 
                 let histTrades = []; let bBalance = propBalanceRef.current;
-                const startIdx = Math.max(50, data1h.length - 100); // Backtest last ~100 hours
+                const startIdx = Math.max(50, data15m.length - 800); 
                 let btEngineState = { forcedDirection: null, riskMultiplier: 1.0, consecutiveLosses: 0 };
 
-                for (let i = startIdx; i < data1h.length - 2; i++) {
+                for (let i = startIdx; i < data15m.length - 2; i++) {
                     // Yield to keep UI responsive
-                    if (i % 10 === 0) await sleep(10);
+                    if (i % 20 === 0) await sleep(10);
 
-                    const sig = evaluateSignalEngine(data1h, i, lMap, aMap, btEngineState, '1H');
+                    // Оцениваем свечу 15M, передавая карты данных 1H
+                    const sig = evaluateSignalEngineHybrid(data15m, i, lMap1H, aMap1H, btEngineState);
                     
                     if (sig.valid) {
                         const tradeRisk = INITIAL_BALANCE * BASE_RISK_PERCENT * btEngineState.riskMultiplier;
                         let trade = {
-                            id: `hist_${sig.signalTime}`, tf: '1H', isLong: sig.isLong, type: sig.isLong ? 'LONG' : 'SHORT',
+                            id: `hist_${sig.signalTime}`, tf: '15M', isLong: sig.isLong, type: sig.isLong ? 'LONG' : 'SHORT',
                             entryPrice: sig.entryPrice, slPrice: sig.slPrice, tp1Price: sig.tp1Price, tp2Price: sig.tp2Price, tp3Price: sig.tp3Price, startTime: sig.signalTime,
                             score: sig.score, stakeAmount: tradeRisk, logicalIndex: i
                         };
                         
-                        let result = 'LOSS'; let closeTime = data1h[i+1].time; let closePrice = trade.slPrice; let pnlAmount = -tradeRisk;
+                        let result = 'LOSS'; let closeTime = data15m[i+1].time; let closePrice = trade.slPrice; let pnlAmount = -tradeRisk;
 
-                        for(let j = i + 1; j < data1h.length; j++) {
-                            const c = data1h[j];
+                        for(let j = i + 1; j < data15m.length; j++) {
+                            const c = data15m[j];
                             if (trade.isLong) {
                                 if (c.low <= trade.slPrice) { result='LOSS'; closeTime=c.time; break; }
-                                if (c.high >= trade.tp1Price) { result='WIN (TP1)'; closeTime=c.time; closePrice=trade.tp1Price; pnlAmount = tradeRisk * 1.5; break; } // Assuming 1:1.5 RR average
+                                if (c.high >= trade.tp1Price) { result='WIN (TP1)'; closeTime=c.time; closePrice=trade.tp1Price; pnlAmount = tradeRisk * 1.5; break; } 
                             } else {
                                 if (c.high >= trade.slPrice) { result='LOSS'; closeTime=c.time; break; }
                                 if (c.low <= trade.tp1Price) { result='WIN (TP1)'; closeTime=c.time; closePrice=trade.tp1Price; pnlAmount = tradeRisk * 1.5; break; }
@@ -974,14 +991,12 @@
                         trade.status = 'CLOSED'; trade.result = result; trade.pnl = pnlAmount; trade.closeTime = closeTime; trade.closePrice = closePrice;
                         histTrades.push(trade); bBalance += pnlAmount;
                         
-                        // Логика Martingale (1.5x) и Реверса для Backtest
                         if (result === 'LOSS') {
                             btEngineState.consecutiveLosses += 1;
                             if (btEngineState.consecutiveLosses === 1) {
                                 btEngineState.forcedDirection = trade.isLong ? 'SHORT' : 'LONG';
                                 btEngineState.riskMultiplier = 1.5;
                             } else {
-                                // 2+ убытка: сброс риска после применения штрафа
                                 btEngineState.forcedDirection = null;
                                 btEngineState.riskMultiplier = 1.0;
                                 btEngineState.consecutiveLosses = 0; 
@@ -991,7 +1006,7 @@
                             btEngineState.riskMultiplier = 1.0;
                             btEngineState.consecutiveLosses = 0;
                         }
-                        i += 2; // Jump forward
+                        i += 4; // Прыгаем вперед на 4 свечи (1 час), чтобы не открывать пачку дублей
                     }
                 }
                 
@@ -1000,8 +1015,8 @@
                 setAppPhase('СИНХРОНИЗАЦИЯ ГРАФИКА...');
                 for(let trade of histTrades.reverse()) { 
                     if (!engineActive.current) break;
-                    chartInstance.current.timeScale().setVisibleLogicalRange({ from: trade.logicalIndex - 15, to: trade.logicalIndex + 15 });
-                    setReplayTrade(trade); playSound('scan'); await sleep(150);
+                    chartInstance.current.timeScale().setVisibleLogicalRange({ from: trade.logicalIndex - 30, to: trade.logicalIndex + 30 });
+                    setReplayTrade(trade); playSound('scan'); await sleep(80);
                 }
                 setReplayTrade(null);
                 chartInstance.current.timeScale().scrollToRealTime();
@@ -1013,35 +1028,35 @@
                 // --- 2. PAUSE PHASE ---
                 setAppState('RESULTS_PAUSE');
                 setAppPhase(`ИСТОРИЯ ЗАГРУЖЕНА. СДЕЛОК: ${histTrades.length}.`);
-                enqueueSpeech(`Анализ истории 1H завершен. Найдено ${histTrades.length} сделок. Перехожу в режим активного сканирования.`, 'startup-stats', 60000);
+                enqueueSpeech(`Анализ гибридной истории завершен. Найдено ${histTrades.length} сделок. Перехожу в режим активного сканирования 15 минутных паттернов.`, 'startup-stats', 60000);
                 await sleep(4000);
 
-                let lastEvaluatedCandleTime = data1h[data1h.length - 1].time;
+                let lastEvaluatedCandleTime = data15m[data15m.length - 1].time;
 
-                // --- 3. LIVE LIVE SCANNING LOOP (1H Main) ---
+                // --- 3. LIVE SCANNING LOOP (HYBRID) ---
                 while (engineActive.current) {
                     try {
                         const nowSec = Math.floor(Date.now() / 1000);
                         const currentStake = INITIAL_BALANCE * BASE_RISK_PERCENT * engineStateRef.current.riskMultiplier;
                         setCurrentStake(currentStake);
 
-                        // Safety Block: 2 losses = 30min pause
+                        // Защита (Пауза после 2 лоссов)
                         if (engineStateRef.current.securityPauseUntil > nowSec) {
                             setAppState('PAUSED');
                             setAppPhase(`ЗАЩИТА АКТИВИРОВАНА ДО ${new Date(engineStateRef.current.securityPauseUntil * 1000).toLocaleTimeString()}`);
                             setZoneInfo(null);
                             currentZoneRef.current = null;
+                            setCurrentTF('SYSTEM PAUSE');
                             await sleep(5000);
                             continue;
                         }
 
-                        // Always fetch 1H in live
-                        const newCandles = await ScannerAPI.getCandles('BTCUSDT', 2, '1h');
-                        if (!newCandles || newCandles.length === 0) { await sleep(2000); continue; }
+                        // Обновляем 15M для тиков
+                        const newCandles15m = await ScannerAPI.getCandles('BTCUSDT', 2, '15m');
+                        if (!newCandles15m || newCandles15m.length === 0) { await sleep(2000); continue; }
                         
-                        const tick = newCandles[newCandles.length - 1];
-                        // Simulate live tick movement for demo
-                        tick.close += (Math.random() - 0.5) * 10; 
+                        const tick = newCandles15m[newCandles15m.length - 1];
+                        tick.close += (Math.random() - 0.5) * 10; // Эмуляция тика
                         tick.high = Math.max(tick.high, tick.close);
                         tick.low = Math.min(tick.low, tick.close);
                         currentPrice.current = tick.close;
@@ -1051,92 +1066,98 @@
                         const activeT = activeTradeRef.current;
 
                         if (!activeT) {
-                            // SCANNING LOGIC
-                            // Инициализируем состояние сканирования только если мы не в зоне (избегаем мигания)
+                            // SCANNING LOGIC (HYBRID)
                             if (!currentZoneRef.current && appState !== 'SCANNING') {
                                 setAppState('SCANNING');
-                                setAppPhase(engineStateRef.current.forcedDirection ? `СКАНИРОВАНИЕ 1H (ОЖИДАНИЕ ${engineStateRef.current.forcedDirection})` : `ГЛУБОКОЕ СКАНИРОВАНИЕ 1H...`);
+                                setCurrentTF('1H (ZONES) / 15M (SCAN)');
+                                setAppPhase(engineStateRef.current.forcedDirection ? `СКАНИРОВАНИЕ 15M (ОЖИДАНИЕ ${engineStateRef.current.forcedDirection})` : `ГЛУБОКОЕ СКАНИРОВАНИЕ 15M...`);
                             }
 
-                            const freshData = await ScannerAPI.getCandles('BTCUSDT', 150, '1h');
-                            if (!freshData || freshData.length < 50) { await sleep(2000); continue; }
-                            setChartDataForScanner(freshData);
+                            // Грузим свежие 1H для зон и 15M для сигналов
+                            const freshData1H = await ScannerAPI.getCandles('BTCUSDT', 150, '1h');
+                            const freshData15M = await ScannerAPI.getCandles('BTCUSDT', 150, '15m');
+                            
+                            if (!freshData1H || !freshData15M || freshData15M.length < 50) { await sleep(2000); continue; }
+                            setChartDataForScanner(freshData15M);
 
-                            const freshLiq = calcLiquidityZones(freshData, 30);
-                            const freshAtr = calcATRSeries(freshData, 14);
-                            const lMap = new Map(freshLiq.map(i => [i.time, {upper: i.upper, lower: i.lower}]));
-                            const aMap = new Map(freshAtr.map(i => [i.time, i.value]));
+                            // Считаем зоны и ATR по 1H
+                            const freshLiq1H = calcLiquidityZones(freshData1H, 30);
+                            const freshAtr1H = calcATRSeries(freshData1H, 14);
+                            const lMap1H = new Map(freshLiq1H.map(i => [i.time, {upper: i.upper, lower: i.lower}]));
+                            const aMap1H = new Map(freshAtr1H.map(i => [i.time, i.value]));
 
-                            const evalIdx = freshData.length - 2; 
-                            const evalCandleTime = freshData[evalIdx].time;
+                            const evalIdx = freshData15M.length - 2; 
+                            const evalCandleTime = freshData15M[evalIdx].time;
 
                             let liveSignal = null;
                             let updatedZone = currentZoneRef.current;
                             
-                            const z = freshLiq[freshLiq.length - 1];
-                            const a = freshAtr[freshAtr.length - 1].value;
+                            const z = freshLiq1H[freshLiq1H.length - 1];
+                            const a = freshAtr1H[freshAtr1H.length - 1].value;
                             
-                            // Строгая "липкая" логика Зоны Интересов
+                            // Липкая логика Зоны Интересов с 1H
                             if (z && a && currentPrice.current) {
                                 const distTop = z.upper - currentPrice.current;
                                 const distBot = currentPrice.current - z.lower;
                                 
-                                // Условия ВХОДА в зону (запас 1.2 ATR для формирования)
-                                if (distTop > -a * 0.5 && distTop < a * 1.2) {
+                                // Входим в зону 1H
+                                if (distTop > -a * 0.8 && distTop < a * 1.5) {
                                     if (!updatedZone || updatedZone.type !== 'RESISTANCE') {
-                                        updatedZone = { type: 'RESISTANCE', top: z.upper, bottom: z.upper - (a*0.5), time: freshData[freshData.length-1].time, atr: a };
-                                        enqueueSpeech(`Внимание. Цена вошла в зону сопротивления. Старший таймфрейм 1 час.`, `zone-res`, 90000);
+                                        updatedZone = { type: 'RESISTANCE', top: z.upper, bottom: z.upper - (a*0.5), time: freshData15M[freshData15M.length-1].time, atr: a };
+                                        enqueueSpeech(`Внимание. Цена вошла в зону сопротивления на таймфрейме 1 час. Ожидаю 15 минутный паттерн.`, `zone-res`, 90000);
                                         playSound('zone');
                                     }
-                                } else if (distBot > -a * 0.5 && distBot < a * 1.2) {
+                                } else if (distBot > -a * 0.8 && distBot < a * 1.5) {
                                     if (!updatedZone || updatedZone.type !== 'SUPPORT') {
-                                        updatedZone = { type: 'SUPPORT', top: z.lower + (a*0.5), bottom: z.lower, time: freshData[freshData.length-1].time, atr: a };
-                                        enqueueSpeech(`Внимание. Цена вошла в зону поддержки. Старший таймфрейм 1 час.`, `zone-sup`, 90000);
+                                        updatedZone = { type: 'SUPPORT', top: z.lower + (a*0.5), bottom: z.lower, time: freshData15M[freshData15M.length-1].time, atr: a };
+                                        enqueueSpeech(`Внимание. Цена вошла в зону поддержки на таймфрейме 1 час. Ожидаю 15 минутный паттерн.`, `zone-sup`, 90000);
                                         playSound('zone');
                                     }
                                 }
                                 
-                                // Условия ВЫХОДА из зоны (выходим только если цена ушла далеко > 1.8 ATR)
+                                // Выходим из зоны (увеличили порог до 2.0 ATR для липкости)
                                 if (updatedZone) {
-                                    if (updatedZone.type === 'RESISTANCE' && (currentPrice.current < updatedZone.bottom - a * 1.8 || currentPrice.current > updatedZone.top + a * 1.8)) {
+                                    if (updatedZone.type === 'RESISTANCE' && (currentPrice.current < updatedZone.bottom - a * 2.0 || currentPrice.current > updatedZone.top + a * 2.0)) {
                                         updatedZone = null;
-                                    } else if (updatedZone.type === 'SUPPORT' && (currentPrice.current > updatedZone.top + a * 1.8 || currentPrice.current < updatedZone.bottom - a * 1.8)) {
+                                    } else if (updatedZone.type === 'SUPPORT' && (currentPrice.current > updatedZone.top + a * 2.0 || currentPrice.current < updatedZone.bottom - a * 2.0)) {
                                         updatedZone = null;
                                     }
                                 }
                             }
 
-                            // Применяем обновления UI только при реальном изменении статуса зоны
+                            // Применяем обновления UI
                             if (currentZoneRef.current !== updatedZone) {
                                 currentZoneRef.current = updatedZone;
                                 setZoneInfo(updatedZone);
 
                                 if (updatedZone) {
                                     setAppState('ZONE_DETECTED');
-                                    setAppPhase('ЦЕНА В ЗОНЕ. ОЖИДАНИЕ ПАТТЕРНА...');
+                                    setCurrentTF('15M (PATTERN FOCUS)');
+                                    setAppPhase('ЦЕНА В ЗОНЕ 1H. ИЩУ 15M ПАТТЕРН...');
                                 } else {
                                     setAppState('SCANNING');
-                                    setAppPhase(engineStateRef.current.forcedDirection ? `СКАНИРОВАНИЕ 1H (ОЖИДАНИЕ ${engineStateRef.current.forcedDirection})` : `ГЛУБОКОЕ СКАНИРОВАНИЕ 1H...`);
+                                    setCurrentTF('1H (ZONES) / 15M (SCAN)');
+                                    setAppPhase(engineStateRef.current.forcedDirection ? `СКАНИРОВАНИЕ 15M (ОЖИДАНИЕ ${engineStateRef.current.forcedDirection})` : `ГЛУБОКОЕ СКАНИРОВАНИЕ 15M...`);
                                 }
                             }
 
-                            // Evaluate new candle signal
+                            // Эвалюация нового сигнала (только на закрытых 15M свечах)
                             if (evalCandleTime > lastEvaluatedCandleTime) {
-                                liveSignal = evaluateSignalEngine(freshData, evalIdx, lMap, aMap, engineStateRef.current, '1H');
+                                liveSignal = evaluateSignalEngineHybrid(freshData15M, evalIdx, lMap1H, aMap1H, engineStateRef.current);
                                 
                                 if (liveSignal && liveSignal.valid) {
                                     lastEvaluatedCandleTime = evalCandleTime; 
                                     
                                     setAppState('PREPARING');
                                     setZoneInfo(null);
-                                    currentZoneRef.current = null; // Сбрасываем реф!
+                                    currentZoneRef.current = null; 
                                     playSound('found');
                                     setAppPhase(`СИГНАЛ: ${liveSignal.signalType}`);
 
                                     const isRecovery = engineStateRef.current.riskMultiplier > 1.0;
                                     const prepMsg = isRecovery ? 
-                                        `Режим восстановления. Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Открытие позиций.` : 
-                                        `Успешный тест ликвидности. Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Подготовка к входу.`;
+                                        `Режим восстановления. Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Паттерн подтвержден на 15 минутах.` : 
+                                        `Слияние таймфреймов успешно. Сделка ${liveSignal.isLong?'Лонг':'Шорт'} на 15 минутах.`;
                                     
                                     enqueueSpeech(prepMsg, 'prep-sig', 0);
 
@@ -1151,18 +1172,20 @@
                                     };
                                     
                                     setLiveTrade(newTrade);
-                                    drawTradeLines(newTrade); // IMMEDIATELY DRAW SL/TP
+                                    drawTradeLines(newTrade); 
                                     
                                     setAppState('ACTIVE_TRADE');
-                                    setAppPhase(`АКТИВНА СДЕЛКА: ${newTrade.type} 1H`);
-                                    enqueueSpeech(`Ордер исполнен. Стоп лосс и тейк профит установлены на график.`, `trade-start-${Date.now()}`, 0);
+                                    setCurrentTF('15M (ACTIVE TRADE)');
+                                    setAppPhase(`АКТИВНА СДЕЛКА: ${newTrade.type} 15M`);
+                                    enqueueSpeech(`Ордер исполнен. Стоп лосс и тейк профит установлены на 15 минутный график.`, `trade-start-${Date.now()}`, 0);
                                 }
                             }
                         } 
                         else {
                             // ACTIVE_TRADE STATE
                             setAppState('ACTIVE_TRADE');
-                            setAppPhase(`В РАБОТЕ: ${activeT.type} 1H`);
+                            setCurrentTF('15M (ACTIVE TRADE)');
+                            setAppPhase(`В РАБОТЕ: ${activeT.type} 15M`);
                             setZoneInfo(null); 
                             currentZoneRef.current = null;
 
@@ -1174,10 +1197,9 @@
                             const currentDistSL = Math.abs(curP - activeT.slPrice);
                             const currentDistTP = Math.abs(curP - activeT.tp1Price);
 
-                            // Strict SL Warning logic
                             if (currentDistSL < distToSL * 0.25 && !activeT.slTimerStarted) {
                                 activeT.slTimerStarted = true;
-                                setSlCountdown(5); // Start UI visual 5s timer
+                                setSlCountdown(5); 
                                 enqueueSpeech("Критическое приближение к стоп-лоссу. Позиция под угрозой ликвидации.", `warn-sl-${activeT.id}`, 0);
                             }
 
@@ -1186,7 +1208,6 @@
                                 enqueueSpeech("Цена достигла зоны тейк-профита. Рекомендуется фиксация прибыли.", `warn-tp-${activeT.id}`, 0);
                             }
 
-                            // Close conditions
                             if (activeT.isLong) {
                                 if (curP <= activeT.slPrice) { closed = true; result = 'LOSS'; pnlAmount = -activeT.stakeAmount; }
                                 else if (curP >= activeT.tp1Price) { closed = true; result = 'WIN'; pnlAmount = activeT.stakeAmount * 1.5; }
@@ -1196,14 +1217,15 @@
                             }
 
                             if (closed) {
-                                setSlCountdown(null); // Clear timer just in case
+                                setSlCountdown(null); 
                                 updateBalance(pnlAmount);
                                 activeT.status = 'CLOSED'; activeT.result = result; activeT.pnl = pnlAmount; activeT.closePrice = curP; activeT.closeTime = Date.now() / 1000;
                                 updateTradeHistory([activeT, ...tradesHistoryRef.current].slice(0, 50));
                                 setLiveTrade(null);
-                                clearLines(); // Remove lines, but the glass box handles visual history!
+                                clearLines(); 
                                 
                                 setAppState('TRADE_CLOSED');
+                                setCurrentTF('HYBRID 1H/15M');
 
                                 if (result === 'LOSS') {
                                     playSound('loss');
@@ -1214,10 +1236,10 @@
                                         engineStateRef.current.riskMultiplier = 1.5; 
                                         enqueueSpeech('Сделка закрыта по стоп-лоссу. Активирую реверс и увеличиваю риск по Мартингейлу в полтора раза.', 'close-loss1', 0);
                                     } else if (engineStateRef.current.consecutiveLosses >= 2) {
-                                        engineStateRef.current.securityPauseUntil = Math.floor(Date.now()/1000) + (30 * 60); // 30 mins
+                                        engineStateRef.current.securityPauseUntil = Math.floor(Date.now()/1000) + (30 * 60); 
                                         engineStateRef.current.forcedDirection = null; 
-                                        engineStateRef.current.riskMultiplier = 1.0; // Сброс множителя риска
-                                        engineStateRef.current.consecutiveLosses = 0; // Сброс счетчика убытков
+                                        engineStateRef.current.riskMultiplier = 1.0; 
+                                        engineStateRef.current.consecutiveLosses = 0; 
                                         enqueueSpeech('Два убытка подряд. Риск сброшен до базового. Активирована защитная блокировка на 30 минут.', 'close-loss2', 0);
                                     }
                                 } else {
@@ -1228,11 +1250,10 @@
                                     engineStateRef.current.forcedDirection = null;
                                 }
                                 
-                                // Immediate return to scanning after brief 1s pause
                                 await sleep(1000); 
                             }
                         }
-                        await sleep(1500); // Live loop frequency
+                        await sleep(1500); 
                     } catch (e) {
                         await sleep(5000);
                     }
@@ -1254,9 +1275,9 @@
                         <div className="relative z-10 glass-panel-heavy p-12 rounded-[2rem] shadow-[0_30px_80px_rgba(0,0,0,1)] flex flex-col items-center max-w-lg text-center transform hover:scale-[1.02] transition-transform duration-700">
                             <Cpu size={56} className="text-purple-400 mb-6 drop-shadow-[0_0_20px_rgba(168,85,247,0.8)] animate-pulse" />
                             <h2 className="text-fuchsia-400 tracking-[0.5em] text-xs font-black uppercase mb-3 oswald-font">Developed by Slava Gordeev</h2>
-                            <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-fuchsia-200 to-indigo-300 tracking-[0.15em] mb-6 oswald-font drop-shadow-md">UPSCALE.TRADE 1H</h1>
+                            <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-fuchsia-200 to-indigo-300 tracking-[0.15em] mb-6 oswald-font drop-shadow-md">UPSCALE.TRADE HYBRID</h1>
                             <p className="text-sm text-slate-300 mb-10 font-medium leading-relaxed bg-black/30 p-4 rounded-xl border border-white/5">
-                                Улучшенная версия терминала. Строгий анализ 1H таймфрейма, усовершенствованная визуализация зон интереса и система реверса.
+                                Улучшенная версия терминала. Зоны ликвидности строятся по 1H, в то время как поиск сигналов осуществляется на 15M для ювелирной точности входа.
                             </p>
                             
                             <button onClick={handleStart} className="w-full py-5 bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 text-white tracking-[0.3em] font-black rounded-xl transition-all duration-300 shadow-[0_0_30px_rgba(168,85,247,0.5)] uppercase oswald-font hover:shadow-[0_0_50px_rgba(168,85,247,0.8)] border border-white/20">
@@ -1299,7 +1320,7 @@
                         <div className="flex items-center gap-5">
                             <div className="w-12 h-12 bg-gradient-to-br from-fuchsia-600 to-indigo-700 rounded-2xl flex items-center justify-center font-black text-2xl shadow-[0_0_25px_rgba(217,70,239,0.5)] border border-white/20">U</div>
                             <div className="flex flex-col">
-                                <h1 className="text-2xl font-black tracking-widest oswald-font text-gradient">UPSCALE.TRADE <span className="text-white">PRO MAX</span></h1>
+                                <h1 className="text-2xl font-black tracking-widest oswald-font text-gradient">UPSCALE.TRADE <span className="text-white">HYBRID</span></h1>
                                 <div className="flex items-center gap-2 mt-0.5">
                                     <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse drop-shadow-[0_0_5px_rgba(52,211,153,1)]"></div>
                                     <span className={`text-[10px] tracking-[0.25em] uppercase font-bold text-fuchsia-300`}>{appPhase}</span>
@@ -1330,8 +1351,8 @@
                                         </div>
                                     </div>
                                     <div className="flex flex-col items-center">
-                                        <span className="text-[10px] font-black text-purple-300/70 tracking-[0.2em] uppercase mb-1">Timeframe</span>
-                                        <div className="px-5 py-1.5 bg-gradient-to-r from-purple-900 to-indigo-900 border border-purple-400/50 text-xs font-black rounded-lg shadow-[0_0_15px_rgba(168,85,247,0.4)] text-white">
+                                        <span className="text-[10px] font-black text-purple-300/70 tracking-[0.2em] uppercase mb-1">Active Timeframe</span>
+                                        <div className="px-5 py-1.5 bg-gradient-to-r from-purple-900 to-indigo-900 border border-purple-400/50 text-[11px] font-black rounded-lg shadow-[0_0_15px_rgba(168,85,247,0.4)] text-white">
                                             {currentTF}
                                         </div>
                                     </div>
@@ -1349,7 +1370,7 @@
 
                                 {appState === 'PREPARING' && prepCountdown !== null && (
                                     <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center backdrop-blur-md">
-                                        <span className="text-base font-black text-fuchsia-400 tracking-[0.3em] uppercase mb-6 animate-pulse">Вход в позицию 1H через...</span>
+                                        <span className="text-base font-black text-fuchsia-400 tracking-[0.3em] uppercase mb-6 animate-pulse">Вход в позицию 15M через...</span>
                                         <div className="text-8xl font-black text-white drop-shadow-[0_0_50px_rgba(217,70,239,1)] mono-font">{prepCountdown}</div>
                                     </div>
                                 )}
@@ -1390,7 +1411,7 @@
                             </div>
 
                             <div className="luxury-card p-5 rounded-2xl flex flex-col gap-3 shrink-0">
-                                <h3 className="text-[12px] font-black tracking-[0.15em] uppercase text-purple-300 mb-2 border-b border-purple-500/20 pb-2">Общая Статистика (1H)</h3>
+                                <h3 className="text-[12px] font-black tracking-[0.15em] uppercase text-purple-300 mb-2 border-b border-purple-500/20 pb-2">Статистика (Гибрид)</h3>
                                 <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm font-mono">
                                     <div className="flex justify-between text-slate-400"><span>Сделок:</span> <span className="text-white font-black">{stats.total}</span></div>
                                     <div className="flex justify-between text-slate-400"><span>Винрейт:</span> <span className="text-fuchsia-400 font-black">{stats.winrate}%</span></div>
@@ -1412,7 +1433,7 @@
                                     <div className="flex flex-col gap-2.5 text-sm font-mono mt-1">
                                         <div className="flex justify-between text-slate-300">
                                             <span>Направление:</span> 
-                                            <span className={`font-black uppercase px-2 py-0.5 rounded ${activeTrade.isLong ? 'bg-emerald-900/50 text-emerald-400' : 'bg-rose-900/50 text-rose-400'}`}>{activeTrade.type} 1H</span>
+                                            <span className={`font-black uppercase px-2 py-0.5 rounded ${activeTrade.isLong ? 'bg-emerald-900/50 text-emerald-400' : 'bg-rose-900/50 text-rose-400'}`}>{activeTrade.type} 15M</span>
                                         </div>
                                         <div className="flex justify-between text-slate-300">
                                             <span>Риск / Объем:</span> 
@@ -1430,13 +1451,15 @@
                                 ) : (
                                     <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-400 py-4">
                                         {appState === 'SCANNING' ? <Radar size={28} className="animate-spin text-purple-500 opacity-60" /> : <Clock size={28} className="text-slate-600" />} 
-                                        <span className="text-xs font-mono font-bold uppercase tracking-widest">{appState === 'SCANNING' ? 'Поиск 1H паттернов...' : 'Ожидание...'}</span>
+                                        <span className="text-xs font-mono font-bold uppercase tracking-widest text-center">
+                                            {appState === 'SCANNING' ? 'Поиск паттернов...' : 'Ожидание...'}
+                                        </span>
                                     </div>
                                 )}
                             </div>
 
                             <div className="flex-1 luxury-card rounded-2xl p-5 flex flex-col overflow-hidden">
-                                <h3 className="text-sm font-black tracking-widest text-slate-200 uppercase oswald-font mb-4 border-b border-purple-500/30 pb-2">Журнал Сделок (1H)</h3>
+                                <h3 className="text-sm font-black tracking-widest text-slate-200 uppercase oswald-font mb-4 border-b border-purple-500/30 pb-2">Журнал Сделок (15M)</h3>
                                 <div className="flex-1 overflow-y-auto journal-scroll pr-2 flex flex-col gap-2.5">
                                     {tradesHistory.length === 0 ? (
                                         <div className="text-xs text-slate-500 text-center font-mono mt-6">Ожидание первых сделок...</div>
