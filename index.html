@@ -5,16 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>UPSCALE.TRADE - PROP TERMINAL PRO MAX (1H EDITION)</title>
     
-    <!-- Native ESM Import Map -->
-    <script type="importmap">
-    {
-        "imports": {
-            "react": "https://esm.sh/react@18.2.0",
-            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-            "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime"
-        }
-    }
-    </script>
+    <!-- СТАБИЛЬНАЯ ЗАГРУЗКА REACT (UMD) - Замена ImportMap для работы Preview -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
     <!-- External Scripts -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -41,6 +34,8 @@
             font-family: 'Montserrat', sans-serif;
         }
         
+        #root { width: 100vw; height: 100vh; }
+
         .oswald-font { font-family: 'Oswald', sans-serif; letter-spacing: 0.05em; text-transform: uppercase; }
         .mono-font { font-family: 'JetBrains Mono', monospace; }
 
@@ -205,9 +200,20 @@
 
     <div id="root"></div>
 
-    <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-        import { createRoot } from 'react-dom/client';
+    <script>
+        // Регистрация пресета с classic runtime для корректной работы Babel Standalone без importmap
+        if (window.Babel) {
+            Babel.registerPreset('react-classic', {
+                presets: [[Babel.availablePresets['react'], { runtime: 'classic' }]]
+            });
+        }
+    </script>
+
+    <script type="text/babel" data-presets="env,react-classic">
+        const React = window.React;
+        const ReactDOM = window.ReactDOM;
+        const { useState, useEffect, useRef, useCallback, useMemo } = React;
+        const { createRoot } = ReactDOM;
 
         const suppressResizeObserverErrors = () => {
             window.addEventListener('error', e => {
@@ -334,33 +340,40 @@
             for(let i=1; i<=20; i++) sumVol += data[evalIdx-i].volume;
             const avgVol = sumVol / 20;
             
-            // Сигнал требует повышенного объёма
-            const isHighVolume = currCandle.volume > avgVol * 1.1 || prevCandle.volume > avgVol * 1.1;
+            // СТРОГОЕ ПРАВИЛО 3: Объём существенно выше среднего (минимум в 1.35 раза)
+            const isHighVolume = currCandle.volume > avgVol * 1.35;
 
-            const upperWick = currCandle.high - Math.max(currCandle.open, currCandle.close);
-            const lowerWick = Math.min(currCandle.open, currCandle.close) - currCandle.low;
             const isRedCandle = currCandle.close < currCandle.open;
             const isGreenCandle = currCandle.close > currCandle.open;
 
-            // НАСТОЯЩИЙ СЪЕМ ЛИКВИДНОСТИ: Тень обязательно должна выходить за пределы зон
-            const sweptTop = currCandle.high > cUpper || prevCandle.high > cUpper;
-            const sweptBot = currCandle.low < cLower || prevCandle.low < cLower;
+            // СТРОГОЕ ПРАВИЛО 1: Реальное снятие ликвидности (выход за пределы пула)
+            const sweptTop = currCandle.high > cUpper;
+            const sweptBot = currCandle.low < cLower;
 
-            // Строгое подтверждение структуры (отторжение)
-            const isStrongRejectionShort = sweptTop && isHighVolume && (
-                (isRedCandle && currCandle.close < prevCandle.high) || 
-                (upperWick / candleRange > 0.4 && currCandle.close < cUpper)
-            );
+            // СТРОГОЕ ПРАВИЛО 2: Закрытие свечи строго за уровнем (подтверждение отторжения)
+            const closeBelowLevel = currCandle.close < cUpper;
+            const closeAboveLevel = currCandle.close > cLower;
 
-            const isStrongRejectionLong = sweptBot && isHighVolume && (
-                (isGreenCandle && currCandle.close > prevCandle.low) ||
-                (lowerWick / candleRange > 0.4 && currCandle.close > cLower)
-            );
+            // СТРОГОЕ ПРАВИЛО 4: Break of Structure (BOS)
+            // Шорт: закрытие ниже минимума предыдущей свечи
+            const bosShort = currCandle.close < prevCandle.low;
+            // Лонг: закрытие выше максимума предыдущей свечи
+            const bosLong = currCandle.close > prevCandle.high;
+
+            // СТРОГОЕ ПРАВИЛО 5: Минимальное расстояние от границы зоны до точки входа >= 0.8 ATR
+            const distFromTop = cUpper - currCandle.close; 
+            const distFromBot = currCandle.close - cLower; 
+            const validDistShort = distFromTop >= cAtr * 0.8;
+            const validDistLong = distFromBot >= cAtr * 0.8;
+
+            // Комбинируем все 5 строгих условий
+            const isStrongRejectionShort = sweptTop && isHighVolume && closeBelowLevel && bosShort && validDistShort && isRedCandle;
+            const isStrongRejectionLong = sweptBot && isHighVolume && closeAboveLevel && bosLong && validDistLong && isGreenCandle;
 
             let isLong = false; let isShort = false; let signalType = ''; let baseScore = 60;
 
-            if (isStrongRejectionShort) { isShort = true; signalType = 'SMC Real Sweep (1H)'; baseScore += 25; }
-            if (isStrongRejectionLong) { isLong = true; signalType = 'SMC Real Sweep (1H)'; baseScore += 25; }
+            if (isStrongRejectionShort) { isShort = true; signalType = 'SMC Strict Sweep (1H)'; baseScore += 30; }
+            if (isStrongRejectionLong) { isLong = true; signalType = 'SMC Strict Sweep (1H)'; baseScore += 30; }
 
             // Контроль реверс-стратегии
             if (engineState.forcedDirection === 'LONG' && isShort) return { valid: false, score: 0 };
@@ -369,8 +382,8 @@
             if (!isLong && !isShort) return { valid: false, score: 0 };
             if (isLong && isShort) return { valid: false, score: 0 };
 
-            let qScore = baseScore + Math.floor(Math.random() * 15);
-            if (qScore < 75) return { valid: false, score: qScore }; // Строгий порог входа
+            let qScore = baseScore + Math.floor(Math.random() * 10);
+            if (qScore < 85) return { valid: false, score: qScore }; // Очень строгий порог входа
 
             const entryPrice = currCandle.close;
             // SL выставляется за экстремум + небольшой буфер
@@ -708,6 +721,7 @@
             const tradesHistoryRef = useRef([]);
             const propBalanceRef = useRef(INITIAL_BALANCE);
             const totalPnLRef = useRef(0);
+            const currentZoneRef = useRef(null);
 
             const chartContainerRef = useRef(null);
             const chartInstance = useRef(null);
@@ -1016,6 +1030,7 @@
                             setAppState('PAUSED');
                             setAppPhase(`ЗАЩИТА АКТИВИРОВАНА ДО ${new Date(engineStateRef.current.securityPauseUntil * 1000).toLocaleTimeString()}`);
                             setZoneInfo(null);
+                            currentZoneRef.current = null;
                             await sleep(5000);
                             continue;
                         }
@@ -1037,8 +1052,11 @@
 
                         if (!activeT) {
                             // SCANNING LOGIC
-                            setAppState('SCANNING');
-                            setAppPhase(engineStateRef.current.forcedDirection ? `СКАНИРОВАНИЕ 1H (ОЖИДАНИЕ ${engineStateRef.current.forcedDirection})` : `ГЛУБОКОЕ СКАНИРОВАНИЕ 1H...`);
+                            // Инициализируем состояние сканирования только если мы не в зоне (избегаем мигания)
+                            if (!currentZoneRef.current && appState !== 'SCANNING') {
+                                setAppState('SCANNING');
+                                setAppPhase(engineStateRef.current.forcedDirection ? `СКАНИРОВАНИЕ 1H (ОЖИДАНИЕ ${engineStateRef.current.forcedDirection})` : `ГЛУБОКОЕ СКАНИРОВАНИЕ 1H...`);
+                            }
 
                             const freshData = await ScannerAPI.getCandles('BTCUSDT', 150, '1h');
                             if (!freshData || freshData.length < 50) { await sleep(2000); continue; }
@@ -1052,33 +1070,54 @@
                             const evalIdx = freshData.length - 2; 
                             const evalCandleTime = freshData[evalIdx].time;
 
-                            let liveSignal = null; let currentZone = null;
+                            let liveSignal = null;
+                            let updatedZone = currentZoneRef.current;
                             
                             const z = freshLiq[freshLiq.length - 1];
                             const a = freshAtr[freshAtr.length - 1].value;
                             
-                            // Strict Zone Detection Logic
+                            // Строгая "липкая" логика Зоны Интересов
                             if (z && a && currentPrice.current) {
                                 const distTop = z.upper - currentPrice.current;
                                 const distBot = currentPrice.current - z.lower;
                                 
-                                if (distTop > 0 && distTop < a * 1.2) {
-                                    currentZone = { type: 'RESISTANCE', top: z.upper, bottom: z.upper - (a*0.5), time: freshData[freshData.length-1].time };
-                                } else if (distBot > 0 && distBot < a * 1.2) {
-                                    currentZone = { type: 'SUPPORT', top: z.lower + (a*0.5), bottom: z.lower, time: freshData[freshData.length-1].time };
+                                // Условия ВХОДА в зону (запас 1.2 ATR для формирования)
+                                if (distTop > -a * 0.5 && distTop < a * 1.2) {
+                                    if (!updatedZone || updatedZone.type !== 'RESISTANCE') {
+                                        updatedZone = { type: 'RESISTANCE', top: z.upper, bottom: z.upper - (a*0.5), time: freshData[freshData.length-1].time, atr: a };
+                                        enqueueSpeech(`Внимание. Цена вошла в зону сопротивления. Старший таймфрейм 1 час.`, `zone-res`, 90000);
+                                        playSound('zone');
+                                    }
+                                } else if (distBot > -a * 0.5 && distBot < a * 1.2) {
+                                    if (!updatedZone || updatedZone.type !== 'SUPPORT') {
+                                        updatedZone = { type: 'SUPPORT', top: z.lower + (a*0.5), bottom: z.lower, time: freshData[freshData.length-1].time, atr: a };
+                                        enqueueSpeech(`Внимание. Цена вошла в зону поддержки. Старший таймфрейм 1 час.`, `zone-sup`, 90000);
+                                        playSound('zone');
+                                    }
                                 }
                                 
-                                if (currentZone && zoneInfo?.type !== currentZone.type) {
-                                    enqueueSpeech(`Внимание. Цена вошла в зону ${currentZone.type === 'RESISTANCE' ? 'сопротивления' : 'поддержки'}. Старший таймфрейм 1 час.`, `zone-entry-${Date.now()}`, 120000);
-                                    playSound('zone');
+                                // Условия ВЫХОДА из зоны (выходим только если цена ушла далеко > 1.8 ATR)
+                                if (updatedZone) {
+                                    if (updatedZone.type === 'RESISTANCE' && (currentPrice.current < updatedZone.bottom - a * 1.8 || currentPrice.current > updatedZone.top + a * 1.8)) {
+                                        updatedZone = null;
+                                    } else if (updatedZone.type === 'SUPPORT' && (currentPrice.current > updatedZone.top + a * 1.8 || currentPrice.current < updatedZone.bottom - a * 1.8)) {
+                                        updatedZone = null;
+                                    }
                                 }
                             }
 
-                            setZoneInfo(currentZone);
+                            // Применяем обновления UI только при реальном изменении статуса зоны
+                            if (currentZoneRef.current !== updatedZone) {
+                                currentZoneRef.current = updatedZone;
+                                setZoneInfo(updatedZone);
 
-                            if (currentZone) {
-                                setAppState('ZONE_DETECTED');
-                                setAppPhase('ЦЕНА В ЗОНЕ. ОЖИДАНИЕ ПАТТЕРНА...');
+                                if (updatedZone) {
+                                    setAppState('ZONE_DETECTED');
+                                    setAppPhase('ЦЕНА В ЗОНЕ. ОЖИДАНИЕ ПАТТЕРНА...');
+                                } else {
+                                    setAppState('SCANNING');
+                                    setAppPhase(engineStateRef.current.forcedDirection ? `СКАНИРОВАНИЕ 1H (ОЖИДАНИЕ ${engineStateRef.current.forcedDirection})` : `ГЛУБОКОЕ СКАНИРОВАНИЕ 1H...`);
+                                }
                             }
 
                             // Evaluate new candle signal
@@ -1090,6 +1129,7 @@
                                     
                                     setAppState('PREPARING');
                                     setZoneInfo(null);
+                                    currentZoneRef.current = null; // Сбрасываем реф!
                                     playSound('found');
                                     setAppPhase(`СИГНАЛ: ${liveSignal.signalType}`);
 
@@ -1124,6 +1164,7 @@
                             setAppState('ACTIVE_TRADE');
                             setAppPhase(`В РАБОТЕ: ${activeT.type} 1H`);
                             setZoneInfo(null); 
+                            currentZoneRef.current = null;
 
                             const curP = currentPrice.current;
                             let closed = false; let pnlAmount = 0; let result = '';
