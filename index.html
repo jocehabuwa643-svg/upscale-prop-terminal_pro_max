@@ -5,10 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>UPSCALE.TRADE - PROP TERMINAL PRO MAX (HYBRID EDITION)</title>
     
-    <!-- СТАБИЛЬНЫЕ ЗАВИСИМОСТИ -->
+    <!-- СТАБИЛЬНЫЕ UMD-БИБЛИОТЕКИ ЧЕРЕЗ CDNJS -->
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
+    
+    <!-- ВНЕШНИЕ ЗАВИСИМОСТИ -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
 
@@ -122,6 +124,7 @@
         
         .trade-win-box { background: linear-gradient(180deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.05) 100%); border-color: rgba(16, 185, 129, 0.3); border-top-color: rgba(16, 185, 129, 0.6); }
         .trade-loss-box { background: linear-gradient(180deg, rgba(225, 29, 72, 0.15) 0%, rgba(159, 18, 57, 0.05) 100%); border-color: rgba(225, 29, 72, 0.3); border-top-color: rgba(225, 29, 72, 0.6); }
+        .trade-trailed-box { background: linear-gradient(180deg, rgba(59, 130, 246, 0.15) 0%, rgba(29, 78, 216, 0.05) 100%); border-color: rgba(59, 130, 246, 0.3); border-top-color: rgba(59, 130, 246, 0.6); }
 
         .scanner-container {
             background: radial-gradient(circle at center, rgba(10, 5, 20, 0.9) 0%, #030108 100%);
@@ -181,29 +184,45 @@
     <div id="error-boundary" style="display:none; position:fixed; top:0; left:0; right:0; background:rgba(225,29,72,0.95); color:white; padding:20px; z-index:99999; font-family:monospace; font-size:14px; backdrop-filter:blur(10px); border-bottom: 2px solid white;"></div>
     
     <script>
+        // Универсальный обработчик ошибок
         const showError = (msg, src, line) => {
             const errDiv = document.getElementById('error-boundary');
-            if (errDiv) {
+            if (errDiv && msg && !msg.includes('ResizeObserver')) {
                 errDiv.style.display = 'block';
-                errDiv.innerHTML += `<b>Критическая ошибка:</b> ${msg}<br/><i>${src || 'Script'}:${line || 'N/A'}</i><br/><br/>`;
+                errDiv.innerHTML += `<b>Ошибка:</b> ${msg}<br/><i>${src || 'Внутренний скрипт'}:${line || ''}</i><br/><br/>`;
             }
         };
         window.addEventListener('error', (e) => showError(e.message, e.filename, e.lineno));
         window.addEventListener('unhandledrejection', (e) => showError(e.reason?.message || e.reason, 'Promise', ''));
 
+        // Блокируем подгрузку CommonJS / ESM внутри Babel
+        window.exports = {};
+        window.module = { exports: window.exports };
+        window.require = function(moduleName) {
+            if (moduleName === 'react') return window.React;
+            if (moduleName === 'react-dom' || moduleName === 'react-dom/client') return window.ReactDOM;
+            return {};
+        };
+
+        // Гарантируем использование Classic Runtime
         if (window.Babel) {
-            window.Babel.registerPreset('react-classic', {
+            window.Babel.registerPreset('react-classic-strict', {
                 presets: [[window.Babel.availablePresets['react'], { runtime: 'classic' }]]
             });
         }
     </script>
 
+    <!-- Точка монтирования -->
     <div id="root"></div>
 
-    <script type="text/babel" data-presets="react-classic">
-        const React = window.React;
-        const ReactDOM = window.ReactDOM;
-        const { useState, useEffect, useRef, useCallback, useMemo } = React || {};
+    <!-- Основной код приложения -->
+    <script type="text/babel" data-presets="react-classic-strict">
+        // Защищенный доступ к хукам через window.React (на случай проблем с порядком парсинга)
+        const useState = (...args) => window.React.useState(...args);
+        const useEffect = (...args) => window.React.useEffect(...args);
+        const useRef = (...args) => window.React.useRef(...args);
+        const useCallback = (...args) => window.React.useCallback(...args);
+        const useMemo = (...args) => window.React.useMemo(...args);
 
         const suppressResizeObserverErrors = () => {
             window.addEventListener('error', e => {
@@ -213,30 +232,31 @@
         suppressResizeObserverErrors();
 
         // Icons
-        const Shield = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 4.81 17 6 19 6a1 1 0 0 1 1 1z"/></svg>);
-        const Cpu = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>);
-        const Activity = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>);
-        const Globe = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>);
-        const Radar = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 5.49A10 10 0 0 0 5.3 19.38"/><path d="M20 8.74A10 10 0 0 1 17.38 20"/><path d="M16 8a6 6 0 0 0-8.5-1.5"/><path d="M7.5 16.5a6 6 0 0 0 9.2-.5"/><path d="M12 12v.01"/></svg>);
-        const Clock = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>);
-        const AlertTriangle = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>);
-        const MousePointer = React.memo(({ size=24, className="" }) => (
+        const Shield = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 4.81 17 6 19 6a1 1 0 0 1 1 1z"/></svg>);
+        const Cpu = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>);
+        const Activity = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>);
+        const Globe = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>);
+        const Radar = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 5.49A10 10 0 0 0 5.3 19.38"/><path d="M20 8.74A10 10 0 0 1 17.38 20"/><path d="M16 8a6 6 0 0 0-8.5-1.5"/><path d="M7.5 16.5a6 6 0 0 0 9.2-.5"/><path d="M12 12v.01"/></svg>);
+        const Clock = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>);
+        const AlertTriangle = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>);
+        const MousePointer = window.React.memo(({ size=24, className="" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="rgba(255,255,255,0.9)" stroke="#0f172a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
                 <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
                 <path d="M13 13l6 6"/>
             </svg>
         ));
-        const ArrowUp = React.memo(({ className="" }) => (
+        const ArrowUp = window.React.memo(({ className="" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
         ));
-        const ArrowDown = React.memo(({ className="" }) => (
+        const ArrowDown = window.React.memo(({ className="" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
         ));
 
+        // Constants & Risk
         const INITIAL_BALANCE = 5000;
-        const RISK_BASE = 0.0075; // 0.75%
-        const RISK_REDUCED = 0.005; // 0.5% (Recovery)
-        const MAIN_TIMEFRAME = 'HYBRID 1H/15M';
+        const RISK_TIERS = [0.0075, 0.0075, 0.005]; // 0 losses = 0.75%, 1 loss = 0.75%, 2 losses = 0.5%, 3 losses = Pause
+        const MAX_DAILY_DD = 0.025; // 2.5% max drawdown
+        const MAIN_TIMEFRAME = 'HYBRID 1H/15M (TRAIL)';
 
         const fetchWithTimeout = async (url, options = {}) => {
             const { timeout = 4000 } = options;
@@ -307,27 +327,16 @@
             return res;
         }
 
-        function calc4HTrend(data1h) {
-            let map = new Map();
-            for (let i = 0; i < data1h.length; i++) {
-                if (i < 4) { map.set(data1h[i].time, 'NEUTRAL'); continue; }
-                const curr = data1h[i].close;
-                const prev = data1h[i-4].close; // Price 4 hours ago serves as proxy for 4H trend momentum
-                map.set(data1h[i].time, curr > prev ? 'BULLISH' : 'BEARISH');
-            }
-            return map;
-        }
-
-        function evaluateSignalEngineHybrid(data15m, evalIdx, liqMap1H, atrMap1H, trendMap4H, engineState) {
+        function evaluateSignalEngineHybrid(data15m, evalIdx, liqMap1H, atrMap1H, engineState) {
             if (evalIdx < 20) return { valid: false, score: 0 };
 
             const curr15m = data15m[evalIdx];
             const prev15m = data15m[evalIdx - 1];
+            const prev2_15m = data15m[evalIdx - 2];
             
             let t1H = curr15m.time - (curr15m.time % 3600);
             let zones = liqMap1H.get(t1H);
             let cAtr = atrMap1H.get(t1H);
-            let trend4H = trendMap4H.get(t1H) || 'NEUTRAL';
             
             if (!zones || !cAtr) {
                 let latest1H = 0;
@@ -336,7 +345,6 @@
                 }
                 zones = liqMap1H.get(latest1H);
                 cAtr = atrMap1H.get(latest1H);
-                trend4H = trendMap4H.get(latest1H) || 'NEUTRAL';
             }
 
             if (!zones || !cAtr) return { valid: false, score: 0 };
@@ -347,56 +355,61 @@
             const distTop = cUpper - curr15m.close;
             const distBot = curr15m.close - cLower;
             
-            const inResZone = distTop > -cAtr * 1.0 && distTop < cAtr * 2.0;
-            const inSupZone = distBot > -cAtr * 1.0 && distBot < cAtr * 2.0;
+            const inResZone = distTop > -cAtr * 1.5 && distTop < cAtr * 2.5;
+            const inSupZone = distBot > -cAtr * 1.5 && distBot < cAtr * 2.5;
             
             if (!inResZone && !inSupZone) return { valid: false, score: 0 };
 
             let sumVol = 0;
             for(let i=1; i<=20; i++) sumVol += data15m[evalIdx-i].volume;
             const avgVol = sumVol / 20;
-            
-            const isHighVolume = curr15m.volume > avgVol * 1.1;
+            const hasVolume = curr15m.volume > avgVol * 1.05;
 
-            const isRedCandle = curr15m.close < curr15m.open;
-            const isGreenCandle = curr15m.close > curr15m.open;
+            const body = Math.abs(curr15m.close - curr15m.open);
+            const upperWick = curr15m.high - Math.max(curr15m.close, curr15m.open);
+            const lowerWick = Math.min(curr15m.close, curr15m.open) - curr15m.low;
 
-            const sweptTop = curr15m.high > cUpper || prev15m.high > cUpper;
-            const sweptBot = curr15m.low < cLower || prev15m.low < cLower;
+            const isBullish = curr15m.close > curr15m.open;
+            const isBearish = curr15m.close < curr15m.open;
+
+            const isBullishRejection = lowerWick > body * 1.2 && isBullish;
+            const isBearishRejection = upperWick > body * 1.2 && isBearish;
 
             const bosShort = curr15m.close < prev15m.low;
             const bosLong = curr15m.close > prev15m.high;
 
-            let shortConfluence = 40; // Base score for being in resistance
-            let longConfluence = 40;  // Base score for being in support
+            const isBearFVG = curr15m.high < prev2_15m.low;
+            const isBullFVG = curr15m.low > prev2_15m.high;
 
-            // Calculate Confluence
-            if (inResZone) {
-                if (trend4H === 'BEARISH') shortConfluence += 20;
-                if (sweptTop) shortConfluence += 15;
-                if (bosShort && isRedCandle) shortConfluence += 15;
-                if (isHighVolume) shortConfluence += 10;
-            }
+            let shortConfluence = 0;
+            let longConfluence = 0;
 
-            if (inSupZone) {
-                if (trend4H === 'BULLISH') longConfluence += 20;
-                if (sweptBot) longConfluence += 15;
-                if (bosLong && isGreenCandle) longConfluence += 15;
-                if (isHighVolume) longConfluence += 10;
-            }
+            if (inResZone) shortConfluence += 40;
+            if (inSupZone) longConfluence += 40;
 
-            let isLong = false; let isShort = false; let signalType = ''; let finalScore = 0;
+            if (hasVolume) { shortConfluence += 15; longConfluence += 15; }
+
+            if (isBearishRejection) shortConfluence += 25;
+            if (isBullishRejection) longConfluence += 25;
+
+            if (bosShort) shortConfluence += 20;
+            if (bosLong) longConfluence += 20;
+
+            if (isBearFVG && isBearish) shortConfluence += 15;
+            if (isBullFVG && isBullish) longConfluence += 15;
+
+            let isLong = false; let isShort = false; let patternName = ''; let finalScore = 0;
 
             if (shortConfluence >= 70 && engineState.forcedDirection !== 'LONG') {
                 isShort = true; finalScore = shortConfluence;
-                if (sweptTop && bosShort) signalType = 'SWEEP + BOS (15M)';
-                else if (sweptTop) signalType = 'LIQUIDITY SWEEP (15M)';
-                else signalType = 'HTF REJECTION (1H)';
+                if (isBearishRejection) patternName = 'LIQUIDITY SWEEP';
+                else if (isBearFVG) patternName = 'ORDER BLOCK + FVG';
+                else patternName = 'ZONE RETEST + BOS';
             } else if (longConfluence >= 70 && engineState.forcedDirection !== 'SHORT') {
                 isLong = true; finalScore = longConfluence;
-                if (sweptBot && bosLong) signalType = 'SWEEP + BOS (15M)';
-                else if (sweptBot) signalType = 'LIQUIDITY SWEEP (15M)';
-                else signalType = 'HTF REJECTION (1H)';
+                if (isBullishRejection) patternName = 'LIQUIDITY SWEEP';
+                else if (isBullFVG) patternName = 'ORDER BLOCK + FVG';
+                else patternName = 'ZONE RETEST + BOS';
             }
 
             if (!isLong && !isShort) return { valid: false, score: 0 };
@@ -409,21 +422,18 @@
             
             let slPrice = rawSlPrice;
             if (slDistancePercent < 0.002) slPrice = isLong ? entryPrice * 0.998 : entryPrice * 1.002; 
-
-            // Hard enforce 1:2 RR for TP1
-            const riskDist = Math.abs(entryPrice - slPrice);
-            const tp1Price = isLong ? entryPrice + riskDist * 2.0 : entryPrice - riskDist * 2.0;
-            const tp2Price = isLong ? entryPrice + riskDist * 3.0 : entryPrice - riskDist * 3.0;
-            const tp3Price = isLong ? entryPrice + riskDist * 4.0 : entryPrice - riskDist * 4.0;
+            
+            const R = Math.abs(entryPrice - slPrice);
+            const level1R = isLong ? entryPrice + R : entryPrice - R;
 
             return { 
-                valid: true, isLong, isShort, signalType: signalType, score: Math.min(100, finalScore), 
-                signalTime: curr15m.time, entryPrice, slPrice, tp1Price, tp2Price, tp3Price,
-                tf: '15M', cUpper, cLower, logicalIndex: evalIdx, expectedRR: '1:2.0'
+                valid: true, isLong, isShort, signalType: patternName, score: Math.min(100, finalScore), 
+                signalTime: curr15m.time, entryPrice, slPrice, level1R, R_value: R,
+                tf: '15M', cUpper, cLower, logicalIndex: evalIdx
             };
         }
 
-        const CompactSpeedometer = React.memo(({ value, label, color }) => {
+        const CompactSpeedometer = window.React.memo(({ value, label, color }) => {
             const safeValue = isNaN(value) ? 50 : Math.max(0, Math.min(100, value));
             const angle = -90 + (safeValue / 100) * 180;
             const radius = 25; const circumference = Math.PI * radius;
@@ -448,7 +458,7 @@
             );
         });
 
-        const TrendPixels = React.memo(() => {
+        const TrendPixels = window.React.memo(() => {
             const [pixels, setPixels] = useState([]);
             useEffect(() => {
                 const generate = () => Array.from({length: 24}).map(() => {
@@ -469,7 +479,7 @@
             );
         });
 
-        const OrderBookDepth = React.memo(({ price }) => {
+        const OrderBookDepth = window.React.memo(({ price }) => {
             const p = price || 0;
             if (!p) return <div className="text-xs text-slate-500 font-bold p-2 text-center">СИНХРОНИЗАЦИЯ ДОМ...</div>;
             const formattedP = formatPrice(p); const step = p > 1000 ? 0.5 : p > 1 ? 0.005 : 0.00005;
@@ -503,7 +513,7 @@
             );
         });
 
-        const ScannerHUD = React.memo(({ data, tf }) => {
+        const ScannerHUD = window.React.memo(({ data, tf }) => {
             const [scanIndex, setScanIndex] = useState(0);
             
             useEffect(() => {
@@ -583,16 +593,23 @@
                             const left = Math.min(xEntry, xExit);
                             const width = Math.max(Math.abs(xExit - xEntry), 15); 
                             
-                            const yHigh = series.priceToCoordinate(Math.max(trade.slPrice, trade.tp1Price));
-                            const yLow = series.priceToCoordinate(Math.min(trade.slPrice, trade.tp1Price));
+                            const yEntry = series.priceToCoordinate(trade.entryPrice);
+                            const yClose = series.priceToCoordinate(trade.closePrice || trade.entryPrice);
                             
-                            if (yHigh !== null && yLow !== null) {
-                                const top = yHigh; const height = Math.max(20, yLow - yHigh);
+                            if (yEntry !== null && yClose !== null) {
+                                const top = Math.min(yEntry, yClose); 
+                                const height = Math.max(20, Math.abs(yClose - yEntry));
                                 box.style.left = `${left}px`; box.style.width = `${width}px`;
                                 box.style.top = `${top}px`; box.style.height = `${height}px`;
                                 
                                 if (trade.status === 'CLOSED') {
-                                    box.className = `trade-glass-box absolute rounded z-20 ${trade.result?.includes('WIN') ? 'trade-win-box' : 'trade-loss-box'}`;
+                                    if (trade.result === 'LOSS') {
+                                        box.className = `trade-glass-box absolute rounded z-20 trade-loss-box`;
+                                    } else if (trade.result === 'WIN (TRAILED)') {
+                                        box.className = `trade-glass-box absolute rounded z-20 trade-trailed-box`;
+                                    } else {
+                                        box.className = `trade-glass-box absolute rounded z-20 trade-win-box`;
+                                    }
                                 } else {
                                     box.className = `trade-glass-box absolute rounded z-20 bg-purple-500/20 border-purple-400/40 border-dashed animate-pulse`;
                                 }
@@ -640,7 +657,7 @@
                             onMouseLeave={() => setHoveredTrade(null)}
                         >
                             <div className="absolute -top-5 left-1 text-[9px] font-black text-white drop-shadow-md pointer-events-none bg-black/50 px-1 rounded border border-white/10">
-                                {trade.result ? (trade.result.includes('WIN') ? '✓ TP' : '✗ SL') : 'ACT'}
+                                {trade.result ? (trade.result.includes('WIN') ? '✓ ' + (trade.realizedR > 0 ? `+${trade.realizedR.toFixed(1)}R` : 'BE') : '✗ SL') : 'ACT'}
                             </div>
                         </div>
                     ))}
@@ -666,7 +683,7 @@
 
                     {hoveredTrade && (
                         <div 
-                            className="absolute z-50 bg-[#0a0514]/95 border border-purple-500/50 p-4 rounded-xl shadow-[0_15px_40px_rgba(0,0,0,0.9)] pointer-events-none transform -translate-x-1/2 -translate-y-[110%] w-[280px] backdrop-blur-xl"
+                            className="absolute z-50 bg-[#0a0514]/95 border border-purple-500/50 p-4 rounded-xl shadow-[0_15px_40px_rgba(0,0,0,0.9)] pointer-events-none transform -translate-x-1/2 -translate-y-[110%] w-[240px] backdrop-blur-xl"
                             style={{ left: hoverPos.x, top: hoverPos.y }}
                         >
                             <div className="flex justify-between items-center border-b border-slate-700/80 pb-2 mb-3">
@@ -678,12 +695,10 @@
                                 </span>
                             </div>
                             <div className="flex flex-col gap-1.5 text-[11px] font-mono text-slate-300">
-                                <div className="flex justify-between"><span>Паттерн:</span> <span className="text-fuchsia-300 font-bold">{hoveredTrade.pattern || 'SYSTEM'}</span></div>
-                                <div className="flex justify-between"><span>Confluence Score:</span> <span className="text-white font-bold">{hoveredTrade.score || 0}/100</span></div>
                                 <div className="flex justify-between"><span>Риск:</span> <span className="text-white font-bold">{hoveredTrade.stakeAmount?.toFixed(2)} USDT</span></div>
-                                <div className="flex justify-between"><span>Expected RR:</span> <span className="text-white font-bold">{hoveredTrade.expectedRR || '1:1.5'}</span></div>
-                                <div className="flex justify-between border-t border-slate-700/80 mt-1 pt-1"><span>Вход:</span> <span className="text-white">{formatPrice(hoveredTrade.entryPrice)}</span></div>
-                                <div className="flex justify-between"><span>SL:</span> <span className="text-rose-400">{formatPrice(hoveredTrade.slPrice)}</span></div>
+                                <div className="flex justify-between"><span>Вход:</span> <span className="text-white">{formatPrice(hoveredTrade.entryPrice)}</span></div>
+                                <div className="flex justify-between"><span>Выход:</span> <span className="text-white">{hoveredTrade.closePrice ? formatPrice(hoveredTrade.closePrice) : '---'}</span></div>
+                                <div className="flex justify-between text-indigo-300"><span>Realized R:</span> <span>{hoveredTrade.realizedR ? hoveredTrade.realizedR.toFixed(2) : '0.00'} R</span></div>
                                 <div className="flex justify-between mt-2 pt-2 border-t border-slate-700/80 font-black text-[13px]">
                                     <span>Итог:</span> 
                                     <span className={hoveredTrade.pnl > 0 ? 'text-emerald-400' : hoveredTrade.pnl < 0 ? 'text-rose-400' : 'text-slate-400'}>
@@ -697,7 +712,7 @@
             );
         };
 
-        const BookflowButton = React.memo(() => (
+        const BookflowButton = window.React.memo(() => (
             <a href="https://app.bookflow.sh?ref=3NCYI" target="_blank" rel="noopener noreferrer" className="massive-broker-btn group relative flex items-center justify-center overflow-hidden cursor-pointer no-underline px-6 md:px-10 py-4 z-50 w-[90%] md:w-auto mx-auto mt-4 mb-4 shadow-[0_10px_30px_rgba(147,51,234,0.4)]">
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-[1000ms] ease-in-out skew-x-12"></div>
                 <span className="relative z-10 text-white font-black tracking-widest text-sm md:text-xl oswald-font uppercase drop-shadow-md flex items-center gap-2 md:gap-3 whitespace-nowrap">
@@ -721,11 +736,12 @@
             
             const [propBalance, setPropBalance] = useState(INITIAL_BALANCE);
             const [totalPnL, setTotalPnL] = useState(0);
+            const [globalMaxDD, setGlobalMaxDD] = useState(0);
             
             const [prepCountdown, setPrepCountdown] = useState(null);
             const [slCountdown, setSlCountdown] = useState(null); 
             
-            const [currentStake, setCurrentStake] = useState(INITIAL_BALANCE * RISK_BASE);
+            const [currentStake, setCurrentStake] = useState(INITIAL_BALANCE * RISK_TIERS[0]);
             const [metrics, setMetrics] = useState({ strength: 88, acc: 95, vol: 70, liq: 65 });
             const [newsData, setNewsData] = useState([]);
             const [currentNews, setCurrentNews] = useState('СИНХРОНИЗАЦИЯ НОВОСТНЫХ ПОТОКОВ...');
@@ -735,6 +751,8 @@
             const tradesHistoryRef = useRef([]);
             const propBalanceRef = useRef(INITIAL_BALANCE);
             const totalPnLRef = useRef(0);
+            const peakBalanceRef = useRef(INITIAL_BALANCE);
+            const maxDDRef = useRef(0);
             const currentZoneRef = useRef(null);
 
             const chartContainerRef = useRef(null);
@@ -752,10 +770,10 @@
             const engineStateRef = useRef({
                 consecutiveLosses: 0,
                 securityPauseUntil: 0,
-                forcedDirection: null 
+                forcedDirection: null,
+                dailyStartBalance: INITIAL_BALANCE
             });
 
-            // Calculate precise 7-day stats and Drawdowns
             const sevenDayStats = useMemo(() => {
                 const sevenDaysAgo = (Date.now() / 1000) - (7 * 24 * 3600);
                 const recentTrades = tradesHistory.filter(t => t.closeTime >= sevenDaysAgo && t.status === 'CLOSED');
@@ -763,26 +781,11 @@
                 const wins = recentTrades.filter(t => t.result?.includes('WIN')).length;
                 const winrate = recentTrades.length > 0 ? ((wins / recentTrades.length) * 100).toFixed(1) : 0;
                 
-                let maxDD = 0;
-                let peak = INITIAL_BALANCE;
-                let runningBal = INITIAL_BALANCE;
-                // Traverse chronologically
-                [...recentTrades].reverse().forEach(t => {
-                    runningBal += t.pnl;
-                    if (runningBal > peak) peak = runningBal;
-                    let currentDD = ((peak - runningBal) / peak) * 100;
-                    if (currentDD > maxDD) maxDD = currentDD;
-                });
+                let trailedCount = recentTrades.filter(t => t.isPartialClosed).length;
+                let totalR = recentTrades.reduce((sum, t) => sum + (t.realizedR || 0), 0);
+                let avgRR = recentTrades.length > 0 ? (totalR / recentTrades.length) : 0;
 
-                return { count: recentTrades.length, pnl, winrate, maxDD };
-            }, [tradesHistory]);
-
-            const dailyDDStats = useMemo(() => {
-                const oneDayAgo = (Date.now() / 1000) - (24 * 3600);
-                const dailyTrades = tradesHistory.filter(t => t.closeTime >= oneDayAgo && t.status === 'CLOSED');
-                const dailyPnL = dailyTrades.reduce((sum, t) => sum + t.pnl, 0);
-                const dailyDD = dailyPnL < 0 ? (Math.abs(dailyPnL) / INITIAL_BALANCE) * 100 : 0;
-                return { pnl: dailyPnL, dd: dailyDD };
+                return { count: recentTrades.length, pnl, winrate, trailedCount, avgRR };
             }, [tradesHistory]);
 
             const initAudio = () => {
@@ -811,6 +814,7 @@
                 if (type === 'loss') { playTone(200, 'sawtooth', 0.6, 0.05); playTone(150, 'sawtooth', 0.8, 0.05, 0.2); }
                 if (type === 'zone') playTone(350, 'sine', 0.15, 0.05);
                 if (type === 'alert') playTone(800, 'square', 0.1, 0.05);
+                if (type === 'partial') { playTone(600, 'sine', 0.2, 0.05); playTone(900, 'sine', 0.2, 0.05, 0.1); }
             };
 
             const enqueueSpeech = useCallback((text, key = null, dedupeMs = 60000) => {
@@ -856,10 +860,24 @@
             const updateTradeHistory = (newHistory) => {
                 tradesHistoryRef.current = newHistory; setTradesHistory([...newHistory]);
             };
+            
             const updateBalance = (pnlAmount) => {
-                propBalanceRef.current += pnlAmount; totalPnLRef.current += pnlAmount;
-                setPropBalance(propBalanceRef.current); setTotalPnL(totalPnLRef.current);
+                propBalanceRef.current += pnlAmount; 
+                totalPnLRef.current += pnlAmount;
+                
+                if (propBalanceRef.current > peakBalanceRef.current) {
+                    peakBalanceRef.current = propBalanceRef.current;
+                }
+                const currentDD = (peakBalanceRef.current - propBalanceRef.current) / peakBalanceRef.current;
+                if (currentDD > maxDDRef.current) {
+                    maxDDRef.current = currentDD;
+                    setGlobalMaxDD(currentDD);
+                }
+
+                setPropBalance(propBalanceRef.current); 
+                setTotalPnL(totalPnLRef.current);
             };
+
             const setLiveTrade = (trade) => {
                 activeTradeRef.current = trade; setActiveTrade(trade ? {...trade} : null);
             };
@@ -933,11 +951,17 @@
                 
                 try {
                     const entryLine = candleSeries.current.createPriceLine({ price: trade.entryPrice, color: trade.isLong ? '#c084fc' : '#64748b', lineWidth: 2, lineStyle: 0, title: 'ENTRY' });
-                    const slLine = candleSeries.current.createPriceLine({ price: trade.slPrice, color: '#e11d48', lineWidth: 2, lineStyle: 2, title: 'STOP LOSS' });
-                    const tp1Line = candleSeries.current.createPriceLine({ price: trade.tp1Price, color: '#10b981', lineWidth: 2, lineStyle: 2, title: 'TP 1:2' });
-                    const tp2Line = candleSeries.current.createPriceLine({ price: trade.tp2Price, color: '#059669', lineWidth: 2, lineStyle: 2, title: 'TP 1:3' });
                     
-                    analysisLinesRef.current.push(entryLine, slLine, tp1Line, tp2Line);
+                    let slColor = trade.isPartialClosed ? '#f59e0b' : '#e11d48'; 
+                    let slTitle = trade.isPartialClosed ? 'TRAIL SL' : 'STOP LOSS';
+                    const slLine = candleSeries.current.createPriceLine({ price: trade.trailingSL || trade.slPrice, color: slColor, lineWidth: 2, lineStyle: 2, title: slTitle });
+                    
+                    if (!trade.isPartialClosed && trade.level1R) {
+                        const r1Line = candleSeries.current.createPriceLine({ price: trade.level1R, color: '#10b981', lineWidth: 2, lineStyle: 2, title: '+1R PARTIAL' });
+                        analysisLinesRef.current.push(r1Line);
+                    }
+                    
+                    analysisLinesRef.current.push(entryLine, slLine);
                 } catch(e) {}
             };
 
@@ -947,7 +971,7 @@
                 if (engineActive.current) return; engineActive.current = true;
                 
                 setAppState('BACKTEST');
-                setAppPhase('БЭКТЕСТ ЗА 7 ДНЕЙ (УЖЕСТОЧЕННЫЕ ПАТТЕРНЫ)...');
+                setAppPhase('БЭКТЕСТ ЗА 7 ДНЕЙ: ТРЕЙЛИНГ И ФИКСАЦИЯ 50%...');
                 
                 const fetchWithRetry = async (sym, cnt, int) => {
                     while(engineActive.current) {
@@ -969,11 +993,12 @@
 
                 const liq1H = calcLiquidityZones(data1h, 30);
                 const atr1H = calcATRSeries(data1h, 14);
-                const trend4HMap = calc4HTrend(data1h); // New 4H trend mapping
                 const lMap1H = new Map(liq1H.map(i => [i.time, {upper: i.upper, lower: i.lower}]));
                 const aMap1H = new Map(atr1H.map(i => [i.time, i.value]));
 
-                let histTrades = []; let bBalance = propBalanceRef.current;
+                let histTrades = []; 
+                let simBalance = propBalanceRef.current;
+                let simPeak = simBalance;
                 
                 const startIdx = Math.max(50, data15m.length - 672); 
                 let btEngineState = { forcedDirection: null, consecutiveLosses: 0 };
@@ -981,93 +1006,184 @@
                 for (let i = startIdx; i < data15m.length - 2; i++) {
                     if (i % 20 === 0) await sleep(10);
 
-                    const sig = evaluateSignalEngineHybrid(data15m, i, lMap1H, aMap1H, trend4HMap, btEngineState);
+                    const sig = evaluateSignalEngineHybrid(data15m, i, lMap1H, aMap1H, btEngineState);
                     
                     if (sig.valid) {
-                        const currentRiskPercent = btEngineState.consecutiveLosses >= 2 ? RISK_REDUCED : RISK_BASE;
-                        const tradeRisk = propBalanceRef.current * currentRiskPercent;
+                        const currentRiskIndex = Math.min(btEngineState.consecutiveLosses, 2);
+                        const currentRiskPercent = RISK_TIERS[currentRiskIndex];
+                        const riskAmount = simBalance * currentRiskPercent;
                         
                         let trade = {
                             id: `hist_${sig.signalTime}`, tf: '15M', isLong: sig.isLong, type: sig.isLong ? 'LONG' : 'SHORT',
-                            entryPrice: sig.entryPrice, slPrice: sig.slPrice, tp1Price: sig.tp1Price, tp2Price: sig.tp2Price, tp3Price: sig.tp3Price, startTime: sig.signalTime,
-                            score: sig.score, stakeAmount: tradeRisk, logicalIndex: i, pattern: sig.signalType, expectedRR: sig.expectedRR
+                            entryPrice: sig.entryPrice, slPrice: sig.slPrice, level1R: sig.level1R, R_value: sig.R_value,
+                            startTime: sig.signalTime, score: sig.score, pattern: sig.signalType,
+                            stakeAmount: riskAmount, logicalIndex: i, 
+                            isPartialClosed: false, trailingSL: sig.slPrice
                         };
                         
-                        let result = 'LOSS'; let closeTime = data15m[i+1].time; let closePrice = trade.slPrice; let pnlAmount = -tradeRisk;
+                        let pnl = 0;
+                        let isPartialClosed = false;
+                        let trailingSL = trade.slPrice;
+                        let closePrice = 0;
+                        let closeTime = 0;
+                        let result = '';
 
-                        for(let j = i + 1; j < data15m.length; j++) {
+                        for (let j = i + 1; j < data15m.length; j++) {
                             const c = data15m[j];
+                            const prevC = data15m[j-1];
+
                             if (trade.isLong) {
-                                if (c.low <= trade.slPrice) { result='LOSS'; closeTime=c.time; break; }
-                                if (c.high >= trade.tp1Price) { result='WIN (TP1)'; closeTime=c.time; closePrice=trade.tp1Price; pnlAmount = tradeRisk * 2.0; break; } // Hit 1:2 RR
-                            } else {
-                                if (c.high >= trade.slPrice) { result='LOSS'; closeTime=c.time; break; }
-                                if (c.low <= trade.tp1Price) { result='WIN (TP1)'; closeTime=c.time; closePrice=trade.tp1Price; pnlAmount = tradeRisk * 2.0; break; }
+                                if (c.low <= trailingSL) {
+                                    closePrice = trailingSL;
+                                    closeTime = c.time;
+                                    if (!isPartialClosed) {
+                                        pnl = -riskAmount; 
+                                        result = 'LOSS';
+                                    } else {
+                                        let partialPnL = (riskAmount / 2) * ((trailingSL - trade.entryPrice) / trade.R_value);
+                                        pnl += partialPnL;
+                                        result = 'WIN (TRAILED)';
+                                    }
+                                    break;
+                                }
+
+                                if (!isPartialClosed && c.high >= trade.level1R) {
+                                    isPartialClosed = true;
+                                    pnl += (riskAmount / 2); 
+                                    trailingSL = trade.entryPrice; 
+                                }
+
+                                if (isPartialClosed) {
+                                    let lowest3 = Math.min(c.low, prevC.low, data15m[j-2]?.low || prevC.low);
+                                    let trailPoint = lowest3; 
+                                    if (trailPoint > trailingSL) trailingSL = trailPoint;
+                                }
+
+                            } else { 
+                                if (c.high >= trailingSL) {
+                                    closePrice = trailingSL;
+                                    closeTime = c.time;
+                                    if (!isPartialClosed) {
+                                        pnl = -riskAmount;
+                                        result = 'LOSS';
+                                    } else {
+                                        let partialPnL = (riskAmount / 2) * ((trade.entryPrice - trailingSL) / trade.R_value);
+                                        pnl += partialPnL;
+                                        result = 'WIN (TRAILED)';
+                                    }
+                                    break;
+                                }
+
+                                if (!isPartialClosed && c.low <= trade.level1R) {
+                                    isPartialClosed = true;
+                                    pnl += (riskAmount / 2);
+                                    trailingSL = trade.entryPrice;
+                                }
+
+                                if (isPartialClosed) {
+                                    let highest3 = Math.max(c.high, prevC.high, data15m[j-2]?.high || prevC.high);
+                                    let trailPoint = highest3;
+                                    if (trailPoint < trailingSL) trailingSL = trailPoint;
+                                }
+                            }
+
+                            if (j === data15m.length - 1) {
+                                closePrice = c.close; closeTime = c.time;
+                                let remainingRisk = isPartialClosed ? (riskAmount/2) : riskAmount;
+                                let finalDiff = trade.isLong ? (c.close - trade.entryPrice) : (trade.entryPrice - c.close);
+                                pnl += remainingRisk * (finalDiff / trade.R_value);
+                                result = pnl > 0 ? (isPartialClosed ? 'WIN (TRAILED)' : 'WIN') : 'LOSS';
                             }
                         }
 
-                        trade.status = 'CLOSED'; trade.result = result; trade.pnl = pnlAmount; trade.closeTime = closeTime; trade.closePrice = closePrice;
-                        histTrades.push(trade); bBalance += pnlAmount;
-                        
+                        trade.status = 'CLOSED'; 
+                        trade.result = result; 
+                        trade.pnl = pnl; 
+                        trade.realizedR = pnl / riskAmount;
+                        trade.closeTime = closeTime; 
+                        trade.closePrice = closePrice;
+                        trade.isPartialClosed = isPartialClosed;
+
+                        histTrades.push(trade); 
+                        simBalance += pnl;
+
+                        if (simBalance > simPeak) simPeak = simBalance;
+                        const dd = (simPeak - simBalance) / simPeak;
+                        if (dd > maxDDRef.current) maxDDRef.current = dd;
+
                         if (result === 'LOSS') {
                             btEngineState.consecutiveLosses += 1;
-                            if (btEngineState.consecutiveLosses === 1) {
-                                btEngineState.forcedDirection = trade.isLong ? 'SHORT' : 'LONG';
-                            } else if (btEngineState.consecutiveLosses === 2) {
-                                btEngineState.forcedDirection = trade.isLong ? 'SHORT' : 'LONG';
-                            } else if (btEngineState.consecutiveLosses >= 3) {
+                            if (btEngineState.consecutiveLosses >= 3) {
                                 btEngineState.forcedDirection = null;
-                                btEngineState.consecutiveLosses = 0; // Pause simulated
-                                i += 16; // Skip 4 hours in backtest
+                                btEngineState.consecutiveLosses = 0; 
+                            } else {
+                                btEngineState.forcedDirection = trade.isLong ? 'SHORT' : 'LONG';
                             }
                         } else {
                             btEngineState.forcedDirection = null;
-                            btEngineState.consecutiveLosses = 0; // Reset risk
+                            btEngineState.consecutiveLosses = 0;
                         }
+
                         i += 4; 
                     }
                 }
                 
                 updateTradeHistory(histTrades.reverse());
                 
+                setGlobalMaxDD(maxDDRef.current);
+                propBalanceRef.current = simBalance;
+                peakBalanceRef.current = simPeak;
+                totalPnLRef.current = simBalance - INITIAL_BALANCE;
+                setPropBalance(simBalance); 
+                setTotalPnL(simBalance - INITIAL_BALANCE);
+
                 setAppPhase('СИНХРОНИЗАЦИЯ ГРАФИКА...');
                 for(let trade of histTrades.reverse()) { 
                     if (!engineActive.current) break;
-                    chartInstance.current.timeScale().setVisibleLogicalRange({ from: trade.logicalIndex - 30, to: trade.logicalIndex + 30 });
+                    chartInstance.current.timeScale().setVisibleLogicalRange({ from: trade.logicalIndex - 30, to: trade.logicalIndex + 50 });
                     setReplayTrade(trade); playSound('scan'); await sleep(80);
                 }
                 setReplayTrade(null);
                 chartInstance.current.timeScale().scrollToRealTime();
-
-                propBalanceRef.current = bBalance;
-                totalPnLRef.current = bBalance - INITIAL_BALANCE;
-                setPropBalance(bBalance); setTotalPnL(bBalance - INITIAL_BALANCE);
                 
                 setAppState('RESULTS_PAUSE');
                 setAppPhase(`ИСТОРИЯ ЗАГРУЖЕНА. СДЕЛОК ЗА 7 ДНЕЙ: ${histTrades.length}.`);
-                enqueueSpeech(`Анализ завершен. Найдено ${histTrades.length} сделок с риском один к двум. Перехожу в режим активного сканирования.`, 'startup-stats', 60000);
+                enqueueSpeech(`Анализ истории за 7 дней завершен. Найдено ${histTrades.length} сделок. Перехожу в режим активного сканирования.`, 'startup-stats', 60000);
                 await sleep(4000);
 
                 let lastEvaluatedCandleTime = data15m[data15m.length - 1].time;
+                engineStateRef.current.dailyStartBalance = simBalance;
 
+                // --- 3. LIVE SCANNING LOOP (HYBRID) ---
                 while (engineActive.current) {
                     try {
                         const nowSec = Math.floor(Date.now() / 1000);
-                        const currentRiskPercent = engineStateRef.current.consecutiveLosses >= 2 ? RISK_REDUCED : RISK_BASE;
+                        const currentRiskIndex = Math.min(engineStateRef.current.consecutiveLosses, 2);
+                        const currentRiskPercent = RISK_TIERS[currentRiskIndex];
                         const calculatedStake = propBalanceRef.current * currentRiskPercent;
                         setCurrentStake(calculatedStake);
 
+                        const dailyDD = (engineStateRef.current.dailyStartBalance - propBalanceRef.current) / engineStateRef.current.dailyStartBalance;
+                        if (dailyDD >= MAX_DAILY_DD) {
+                            setAppState('PAUSED');
+                            setAppPhase(`ДОСТИГНУТ ЛИМИТ ПРОСАДКИ ЗА ДЕНЬ (2.5%)`);
+                            setZoneInfo(null); currentZoneRef.current = null;
+                            setCurrentTF('SYSTEM LOCKED');
+                            enqueueSpeech('Достигнут дневной лимит потерь. Торговля заблокирована до конца сессии.', 'daily-limit', 3600000);
+                            await sleep(60000);
+                            continue;
+                        }
+
                         if (engineStateRef.current.securityPauseUntil > nowSec) {
                             setAppState('PAUSED');
-                            setAppPhase(`ЗАЩИТА АКТИВИРОВАНА ДО ${new Date(engineStateRef.current.securityPauseUntil * 1000).toLocaleTimeString()}`);
-                            setZoneInfo(null);
-                            currentZoneRef.current = null;
+                            setAppPhase(`ЗАЩИТА (3 УБЫТКА). ПАУЗА 60 МИНУТ.`);
+                            setZoneInfo(null); currentZoneRef.current = null;
                             setCurrentTF('SYSTEM PAUSE');
                             await sleep(5000);
                             continue;
                         }
 
-                        const newCandles15m = await ScannerAPI.getCandles('BTCUSDT', 2, '15m');
+                        const newCandles15m = await ScannerAPI.getCandles('BTCUSDT', 3, '15m');
                         if (!newCandles15m || newCandles15m.length === 0) { await sleep(2000); continue; }
                         
                         const tick = newCandles15m[newCandles15m.length - 1];
@@ -1095,7 +1211,6 @@
 
                             const freshLiq1H = calcLiquidityZones(freshData1H, 30);
                             const freshAtr1H = calcATRSeries(freshData1H, 14);
-                            const trend4HMapLive = calc4HTrend(freshData1H);
                             const lMap1H = new Map(freshLiq1H.map(i => [i.time, {upper: i.upper, lower: i.lower}]));
                             const aMap1H = new Map(freshAtr1H.map(i => [i.time, i.value]));
 
@@ -1112,16 +1227,16 @@
                                 const distTop = z.upper - currentPrice.current;
                                 const distBot = currentPrice.current - z.lower;
                                 
-                                if (distTop > -a * 1.0 && distTop < a * 2.0) {
+                                if (distTop > -a * 1.5 && distTop < a * 2.5) {
                                     if (!updatedZone || updatedZone.type !== 'RESISTANCE') {
                                         updatedZone = { type: 'RESISTANCE', top: z.upper, bottom: z.upper - (a*0.5), time: freshData15M[freshData15M.length-1].time, atr: a };
-                                        enqueueSpeech(`Цена в зоне сопротивления. Ищем подтверждение на 15 минутах.`, `zone-res`, 90000);
+                                        enqueueSpeech(`Внимание. Цена вошла в зону сопротивления на таймфрейме 1 час. Ожидаю 15 минутный паттерн.`, `zone-res`, 90000);
                                         playSound('zone');
                                     }
-                                } else if (distBot > -a * 1.0 && distBot < a * 2.0) {
+                                } else if (distBot > -a * 1.5 && distBot < a * 2.5) {
                                     if (!updatedZone || updatedZone.type !== 'SUPPORT') {
                                         updatedZone = { type: 'SUPPORT', top: z.lower + (a*0.5), bottom: z.lower, time: freshData15M[freshData15M.length-1].time, atr: a };
-                                        enqueueSpeech(`Цена в зоне поддержки. Ищем подтверждение на 15 минутах.`, `zone-sup`, 90000);
+                                        enqueueSpeech(`Внимание. Цена вошла в зону поддержки на таймфрейме 1 час. Ожидаю 15 минутный паттерн.`, `zone-sup`, 90000);
                                         playSound('zone');
                                     }
                                 }
@@ -1151,7 +1266,7 @@
                             }
 
                             if (evalCandleTime > lastEvaluatedCandleTime) {
-                                liveSignal = evaluateSignalEngineHybrid(freshData15M, evalIdx, lMap1H, aMap1H, trend4HMapLive, engineStateRef.current);
+                                liveSignal = evaluateSignalEngineHybrid(freshData15M, evalIdx, lMap1H, aMap1H, engineStateRef.current);
                                 
                                 if (liveSignal && liveSignal.valid) {
                                     lastEvaluatedCandleTime = evalCandleTime; 
@@ -1160,12 +1275,12 @@
                                     setZoneInfo(null);
                                     currentZoneRef.current = null; 
                                     playSound('found');
-                                    setAppPhase(`СИГНАЛ: ${liveSignal.signalType} (${liveSignal.score}/100)`);
+                                    setAppPhase(`СИГНАЛ: ${liveSignal.signalType}`);
 
-                                    const isRecovery = engineStateRef.current.consecutiveLosses >= 2;
+                                    const isRecovery = engineStateRef.current.consecutiveLosses > 0;
                                     const prepMsg = isRecovery ? 
-                                        `Защитный режим. Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Риск снижен.` : 
-                                        `Слияние факторов: ${liveSignal.score} баллов. Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Ожидаемый риск-ревард один к двум.`;
+                                        `Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Включен режим контроля убытков.` : 
+                                        `Слияние таймфреймов успешно. Сделка ${liveSignal.isLong?'Лонг':'Шорт'} на 15 минутах.`;
                                     
                                     enqueueSpeech(prepMsg, 'prep-sig', 0);
 
@@ -1174,9 +1289,10 @@
 
                                     const newTrade = {
                                         id: `trade_${Date.now()}`, tf: liveSignal.tf, isLong: liveSignal.isLong, type: liveSignal.isLong ? 'LONG' : 'SHORT',
-                                        entryPrice: liveSignal.entryPrice, slPrice: liveSignal.slPrice, tp1Price: liveSignal.tp1Price, tp2Price: liveSignal.tp2Price, tp3Price: liveSignal.tp3Price,
-                                        startTime: Date.now() / 1000, status: 'ACTIVE', score: liveSignal.score, pattern: liveSignal.signalType, expectedRR: liveSignal.expectedRR,
-                                        warnedTP: false, slTimerStarted: false, stakeAmount: calculatedStake
+                                        entryPrice: liveSignal.entryPrice, slPrice: liveSignal.slPrice, level1R: liveSignal.level1R, R_value: liveSignal.R_value,
+                                        startTime: Date.now() / 1000, status: 'ACTIVE', score: liveSignal.score, pattern: liveSignal.signalType,
+                                        isPartialClosed: false, trailingSL: liveSignal.slPrice,
+                                        warnedTP: false, slTimerStarted: false, stakeAmount: calculatedStake, pnl: 0
                                     };
                                     
                                     setLiveTrade(newTrade);
@@ -1185,48 +1301,96 @@
                                     setAppState('ACTIVE_TRADE');
                                     setCurrentTF('15M (ACTIVE TRADE)');
                                     setAppPhase(`АКТИВНА СДЕЛКА: ${newTrade.type} 15M`);
-                                    enqueueSpeech(`Ордер исполнен. Стоп лосс установлен.`, `trade-start-${Date.now()}`, 0);
+                                    enqueueSpeech(`Ордер исполнен. Стоп-лосс на графике. Фиксация 50 процентов планируется при +1 R.`, `trade-start-${Date.now()}`, 0);
                                 }
                             }
                         } 
                         else {
                             setAppState('ACTIVE_TRADE');
                             setCurrentTF('15M (ACTIVE TRADE)');
-                            setAppPhase(`В РАБОТЕ: ${activeT.type} 15M`);
-                            setZoneInfo(null); 
-                            currentZoneRef.current = null;
-
-                            const curP = currentPrice.current;
-                            let closed = false; let pnlAmount = 0; let result = '';
-
-                            const distToTP1 = Math.abs(activeT.tp1Price - activeT.entryPrice);
-                            const distToSL = Math.abs(activeT.entryPrice - activeT.slPrice);
-                            const currentDistSL = Math.abs(curP - activeT.slPrice);
-                            const currentDistTP = Math.abs(curP - activeT.tp1Price);
-
-                            if (currentDistSL < distToSL * 0.25 && !activeT.slTimerStarted) {
-                                activeT.slTimerStarted = true;
-                                setSlCountdown(5); 
-                                enqueueSpeech("Критическое приближение к стоп-лоссу.", `warn-sl-${activeT.id}`, 0);
+                            
+                            if (activeT.isPartialClosed) {
+                                setAppPhase(`В РАБОТЕ: ${activeT.type} 15M (ТРЕЙЛИНГ)`);
+                            } else {
+                                setAppPhase(`В РАБОТЕ: ${activeT.type} 15M (ОЖИДАНИЕ 1R)`);
                             }
 
-                            if (currentDistTP < distToTP1 * 0.2 && !activeT.warnedTP) {
-                                activeT.warnedTP = true;
-                                enqueueSpeech("Цена достигла зоны тейк-профита.", `warn-tp-${activeT.id}`, 0);
+                            const curP = currentPrice.current;
+                            let closed = false; 
+                            let result = '';
+
+                            const distToSL = Math.abs(curP - activeT.trailingSL);
+                            const fullRisk = activeT.R_value;
+
+                            if (distToSL < fullRisk * 0.25 && !activeT.slTimerStarted && !activeT.isPartialClosed) {
+                                activeT.slTimerStarted = true;
+                                setSlCountdown(5); 
+                                enqueueSpeech("Опасность ликвидации ордера. Приближаемся к стоп-лоссу.", `warn-sl-${activeT.id}`, 0);
                             }
 
                             if (activeT.isLong) {
-                                if (curP <= activeT.slPrice) { closed = true; result = 'LOSS'; pnlAmount = -activeT.stakeAmount; }
-                                else if (curP >= activeT.tp1Price) { closed = true; result = 'WIN'; pnlAmount = activeT.stakeAmount * 2.0; } // 1:2 RR
-                            } else {
-                                if (curP >= activeT.slPrice) { closed = true; result = 'LOSS'; pnlAmount = -activeT.stakeAmount; }
-                                else if (curP <= activeT.tp1Price) { closed = true; result = 'WIN'; pnlAmount = activeT.stakeAmount * 2.0; }
+                                if (curP <= activeT.trailingSL) { 
+                                    closed = true; 
+                                    if (!activeT.isPartialClosed) {
+                                        activeT.pnl = -activeT.stakeAmount;
+                                        result = 'LOSS';
+                                    } else {
+                                        activeT.pnl += (activeT.stakeAmount / 2) * ((activeT.trailingSL - activeT.entryPrice) / fullRisk);
+                                        result = 'WIN (TRAILED)';
+                                    }
+                                }
+                                else if (!activeT.isPartialClosed && curP >= activeT.level1R) {
+                                    activeT.isPartialClosed = true;
+                                    activeT.pnl += (activeT.stakeAmount / 2); 
+                                    activeT.trailingSL = activeT.entryPrice; 
+                                    setLiveTrade(activeT); drawTradeLines(activeT);
+                                    playSound('partial');
+                                    enqueueSpeech('Частичная фиксация прибыли успешна. Половина позиции закрыта. Стоп лосс в безубытке.', `partial-${activeT.id}`, 0);
+                                }
+                                else if (activeT.isPartialClosed && newCandles15m.length >= 3) {
+                                    const len = newCandles15m.length;
+                                    const lowest3 = Math.min(newCandles15m[len-1].low, newCandles15m[len-2].low, newCandles15m[len-3].low);
+                                    if (lowest3 > activeT.trailingSL) {
+                                        activeT.trailingSL = lowest3;
+                                        setLiveTrade(activeT); drawTradeLines(activeT);
+                                    }
+                                }
+
+                            } else { 
+                                if (curP >= activeT.trailingSL) { 
+                                    closed = true; 
+                                    if (!activeT.isPartialClosed) {
+                                        activeT.pnl = -activeT.stakeAmount;
+                                        result = 'LOSS';
+                                    } else {
+                                        activeT.pnl += (activeT.stakeAmount / 2) * ((activeT.entryPrice - activeT.trailingSL) / fullRisk);
+                                        result = 'WIN (TRAILED)';
+                                    }
+                                }
+                                else if (!activeT.isPartialClosed && curP <= activeT.level1R) {
+                                    activeT.isPartialClosed = true;
+                                    activeT.pnl += (activeT.stakeAmount / 2); 
+                                    activeT.trailingSL = activeT.entryPrice; 
+                                    setLiveTrade(activeT); drawTradeLines(activeT);
+                                    playSound('partial');
+                                    enqueueSpeech('Частичная фиксация прибыли успешна. Половина позиции закрыта. Стоп лосс в безубытке.', `partial-${activeT.id}`, 0);
+                                }
+                                else if (activeT.isPartialClosed && newCandles15m.length >= 3) {
+                                    const len = newCandles15m.length;
+                                    const highest3 = Math.max(newCandles15m[len-1].high, newCandles15m[len-2].high, newCandles15m[len-3].high);
+                                    if (highest3 < activeT.trailingSL) {
+                                        activeT.trailingSL = highest3;
+                                        setLiveTrade(activeT); drawTradeLines(activeT);
+                                    }
+                                }
                             }
 
                             if (closed) {
                                 setSlCountdown(null); 
-                                updateBalance(pnlAmount);
-                                activeT.status = 'CLOSED'; activeT.result = result; activeT.pnl = pnlAmount; activeT.closePrice = curP; activeT.closeTime = Date.now() / 1000;
+                                updateBalance(activeT.pnl);
+                                activeT.status = 'CLOSED'; activeT.result = result; activeT.closePrice = curP; activeT.closeTime = Date.now() / 1000;
+                                activeT.realizedR = activeT.pnl / activeT.stakeAmount;
+                                
                                 updateTradeHistory([activeT, ...tradesHistoryRef.current].slice(0, 100)); 
                                 setLiveTrade(null);
                                 clearLines(); 
@@ -1240,25 +1404,25 @@
                                     
                                     if (engineStateRef.current.consecutiveLosses === 1) {
                                         engineStateRef.current.forcedDirection = activeT.isLong ? 'SHORT' : 'LONG';
-                                        enqueueSpeech('Сделка закрыта по стоп-лоссу. Активирую реверс направления.', 'close-loss1', 0);
+                                        enqueueSpeech('Убыток зафиксирован. Включаю реверс направления.', 'close-loss1', 0);
                                     } else if (engineStateRef.current.consecutiveLosses === 2) {
                                         engineStateRef.current.forcedDirection = activeT.isLong ? 'SHORT' : 'LONG';
-                                        enqueueSpeech('Второй убыток. Риск снижен до нуля целых пяти десятых процента для защиты капитала.', 'close-loss2', 0);
+                                        enqueueSpeech('Второй убыток. Риск временно снижен для минимизации просадки.', 'close-loss2', 0);
                                     } else if (engineStateRef.current.consecutiveLosses >= 3) {
                                         engineStateRef.current.securityPauseUntil = Math.floor(Date.now()/1000) + (60 * 60); 
                                         engineStateRef.current.forcedDirection = null; 
                                         engineStateRef.current.consecutiveLosses = 0; 
-                                        enqueueSpeech('Три убытка подряд. Система активирует защитную паузу на 60 минут. Риск возвращен к базовому.', 'close-loss3', 0);
+                                        enqueueSpeech('Три убытка подряд. Система активирует защитную блокировку на 60 минут. Риск сброшен до базового.', 'close-loss3', 0);
                                     }
 
                                 } else {
                                     playSound('win');
-                                    enqueueSpeech('Целевая прибыль 1 к 2 достигнута. Риск-менеджмент возвращен к базовым настройкам.', `win-${Date.now()}`, 0);
+                                    enqueueSpeech('Сделка успешно закрыта по трейлингу. Риск-менеджмент сброшен до базового.', `win-${Date.now()}`, 0);
                                     engineStateRef.current.consecutiveLosses = 0;
                                     engineStateRef.current.forcedDirection = null;
                                 }
                                 
-                                await sleep(1000); 
+                                await sleep(1500); 
                             }
                         }
                         await sleep(1500); 
@@ -1271,15 +1435,16 @@
             const handleStart = () => {
                 initAudio();
                 setIsStarted(true);
-                try {
+            };
+
+            useEffect(() => {
+                if (isStarted) {
                     const rootElement = document.getElementById('root');
                     if(rootElement) {
                         setTimeout(runEngine, 500);
                     }
-                } catch (e) {
-                    showError("Start Hook Failed", e.message, "");
                 }
-            };
+            }, [isStarted]);
 
             if (!isStarted) {
                 return (
@@ -1292,7 +1457,7 @@
                             <h2 className="text-fuchsia-400 tracking-[0.5em] text-xs font-black uppercase mb-3 oswald-font">Developed by Slava Gordeev</h2>
                             <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-fuchsia-200 to-indigo-300 tracking-[0.15em] mb-6 oswald-font drop-shadow-md">UPSCALE.TRADE HYBRID</h1>
                             <p className="text-sm text-slate-300 mb-10 font-medium leading-relaxed bg-black/30 p-4 rounded-xl border border-white/5">
-                                Проп-Версия. Фильтр старшего таймфрейма, Confluence Score 70+, защита от просадки с понижением риска. Только высоковероятностные сигналы.
+                                Интеллектуальный контроль сделок. Фиксация 50% прибыли на +1R и автоматический структурный трейлинг. Честный бэктест за 7 дней.
                             </p>
                             
                             <button onClick={handleStart} className="w-full py-5 bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 text-white tracking-[0.3em] font-black rounded-xl transition-all duration-300 shadow-[0_0_30px_rgba(168,85,247,0.5)] uppercase oswald-font hover:shadow-[0_0_50px_rgba(168,85,247,0.8)] border border-white/20">
@@ -1303,14 +1468,12 @@
                 );
             }
 
-            const currentRiskPercent = engineStateRef.current.consecutiveLosses >= 2 ? RISK_REDUCED : RISK_BASE;
-            const isReducedRisk = engineStateRef.current.consecutiveLosses >= 2;
+            const currentRiskIndex = Math.min(engineStateRef.current.consecutiveLosses, 2);
+            const currentRiskStr = (RISK_TIERS[currentRiskIndex] * 100).toFixed(2) + '%';
+            const isRecoveryMode = currentRiskIndex > 0;
 
-            let recommendation = "ШТАТНЫЙ РЕЖИМ";
-            let recColor = "text-emerald-400";
-            if (dailyDDStats.dd >= 2.5) { recommendation = "КРИТИЧЕСКАЯ ПРОСАДКА. СТОП."; recColor = "text-rose-500"; }
-            else if (dailyDDStats.dd >= 1.5) { recommendation = "ВНИМАНИЕ: СНИЗИТЬ АКТИВНОСТЬ"; recColor = "text-amber-400"; }
-            else if (isReducedRisk) { recommendation = "ВОССТАНОВЛЕНИЕ: РИСК СНИЖЕН"; recColor = "text-fuchsia-400"; }
+            const dailyDD = ((engineStateRef.current.dailyStartBalance - propBalance) / engineStateRef.current.dailyStartBalance) * 100;
+            const isDDWarning = dailyDD > 1.5;
 
             return (
                 <div className="h-[100dvh] w-screen flex flex-col relative overflow-hidden bg-[#030108] text-slate-100 font-sans">
@@ -1319,13 +1482,13 @@
                     <div className="absolute inset-0 bg-grid-pattern pointer-events-none opacity-50"></div>
 
                     {appState === 'PAUSED' && (
-                        <div className="absolute inset-0 z-50 bg-[#030108]/95 backdrop-blur-2xl flex flex-col items-center justify-center p-6 text-center border-4 border-amber-900/50">
-                            <Shield size={100} className="text-amber-500 mb-8 drop-shadow-[0_0_40px_rgba(245,158,11,0.9)] animate-pulse" />
+                        <div className="absolute inset-0 z-50 bg-[#030108]/95 backdrop-blur-2xl flex flex-col items-center justify-center p-6 text-center border-4 border-rose-900/50">
+                            <Shield size={100} className="text-rose-500 mb-8 drop-shadow-[0_0_40px_rgba(225,29,72,0.9)] animate-pulse" />
                             <h1 className="text-5xl md:text-6xl font-black text-white oswald-font tracking-[0.2em] mb-6 drop-shadow-lg">РЫНОК НЕСТАБИЛЕН</h1>
-                            <div className="bg-amber-950/50 border border-amber-500/30 px-8 py-4 rounded-2xl mb-8">
-                                <h2 className="text-2xl md:text-3xl font-bold text-amber-300">ЗАЩИТНАЯ ПАУЗА НА 60 МИНУТ</h2>
+                            <div className="bg-rose-950/50 border border-rose-500/30 px-8 py-4 rounded-2xl mb-8">
+                                <h2 className="text-2xl md:text-3xl font-bold text-rose-300">ЗАЩИТНАЯ БЛОКИРОВКА АКТИВИРОВАНА</h2>
                             </div>
-                            <p className="text-xl text-slate-300 font-mono max-w-2xl leading-relaxed">Система зафиксировала 3 убытка подряд. Во избежание дальнейшей просадки алгоритмы временно приостановлены. Риск сброшен до базового 0.75%.</p>
+                            <p className="text-xl text-slate-300 font-mono max-w-2xl leading-relaxed">Система зафиксировала серию убытков или лимит просадки. Алгоритмы сканирования временно приостановлены для защиты капитала.</p>
                         </div>
                     )}
 
@@ -1381,10 +1544,9 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex bg-black/40 rounded-2xl border border-white/10 divide-x divide-white/10 shadow-inner">
+                                <div className="flex bg-black/40 rounded-2xl border border-white/10 divide-x divide-white/10 shadow-inner hidden sm:flex">
                                     <CompactSpeedometer value={metrics.strength} label="STRENGTH" color="#d946ef" />
                                     <CompactSpeedometer value={metrics.vol} label="VOLUME" color="#a855f7" />
-                                    <CompactSpeedometer value={metrics.liq} label="LIQUIDITY" color="#6366f1" />
                                 </div>
                             </div>
 
@@ -1426,47 +1588,54 @@
                                 <div className="absolute top-0 right-0 p-2 opacity-20"><Activity size={60} /></div>
                                 <h3 className="text-[12px] font-black tracking-[0.15em] uppercase text-indigo-300 mb-2 border-b border-indigo-500/20 pb-2 flex items-center justify-between">
                                     <span>Управление капиталом</span>
-                                    <span className={`${recColor} text-[9px] font-bold text-right ml-2`}>{recommendation}</span>
+                                    {isRecoveryMode && <span className="px-2 py-0.5 bg-rose-600/20 text-rose-300 text-[9px] rounded border border-rose-500/30 animate-pulse">RECOVERY</span>}
                                 </h3>
                                 
                                 <div className="flex flex-col gap-2.5 text-sm font-mono relative z-10">
                                     <div className="flex justify-between text-slate-400">
-                                        <span>Текущий Риск:</span> 
-                                        <span className={`${isReducedRisk ? 'text-rose-400 drop-shadow-[0_0_5px_rgba(244,63,94,0.5)]' : 'text-emerald-400'} font-black`}>
-                                            {(currentRiskPercent*100).toFixed(2)}% {isReducedRisk ? '(СНИЖЕН)' : '(БАЗА)'}
+                                        <span>Текущий риск:</span> 
+                                        <span className={`${isRecoveryMode ? 'text-rose-400 drop-shadow-[0_0_5px_rgba(244,63,94,0.5)]' : 'text-emerald-400'} font-black`}>
+                                            {currentRiskStr} {isRecoveryMode ? `(Снижен)` : ''}
                                         </span>
                                     </div>
                                     <div className="flex justify-between text-slate-400">
-                                        <span>Просадка (24H):</span> 
-                                        <span className={`${dailyDDStats.dd >= 1.5 ? "text-rose-400" : "text-emerald-400"} font-black`}>
-                                            {dailyDDStats.dd.toFixed(2)}%
+                                        <span>Просадка за день:</span> 
+                                        <span className={`${isDDWarning ? 'text-rose-400 animate-pulse' : 'text-white'} font-black`}>
+                                            {dailyDD > 0 ? `-${dailyDD.toFixed(2)}%` : '0.00%'}
                                         </span>
                                     </div>
-                                    <div className="flex justify-between text-slate-400">
-                                        <span>Макс. Просадка (7D):</span> 
-                                        <span className="text-white font-black">{sevenDayStats.maxDD.toFixed(2)}%</span>
-                                    </div>
-                                    <div className="flex justify-between text-slate-400 border-t border-indigo-500/20 pt-2 mt-1">
-                                        <span>Сделок за 7D:</span> 
-                                        <span className="text-white font-black">{sevenDayStats.count}</span>
+                                    <div className="flex justify-between mt-2 pt-2 border-t border-indigo-500/20 text-slate-400">
+                                        <span className="text-[10px] uppercase font-bold text-indigo-300">Статистика 7 Дней:</span>
                                     </div>
                                     <div className="flex justify-between text-slate-400">
-                                        <span>Винрейт (7D):</span> 
+                                        <span>Сделок / Треилов:</span> 
+                                        <span className="text-white font-black">{sevenDayStats.count} / {sevenDayStats.trailedCount}</span>
+                                    </div>
+                                    <div className="flex justify-between text-slate-400">
+                                        <span>Винрейт:</span> 
                                         <span className="text-fuchsia-400 font-black">{sevenDayStats.winrate}%</span>
                                     </div>
                                     <div className="flex justify-between text-slate-400">
-                                        <span>Итог (7D):</span> 
-                                        <span className={`${sevenDayStats.pnl >= 0 ? "text-emerald-400" : "text-rose-400"} font-black`}>
+                                        <span>Макс. Просадка:</span> 
+                                        <span className="text-rose-400 font-black">{(globalMaxDD * 100).toFixed(2)}%</span>
+                                    </div>
+                                    <div className="flex justify-between text-slate-400">
+                                        <span>Средний RR:</span> 
+                                        <span className="text-emerald-300 font-black">{sevenDayStats.avgRR.toFixed(2)} R</span>
+                                    </div>
+                                    <div className="flex justify-between text-slate-400">
+                                        <span>7D PnL:</span> 
+                                        <span className={`${sevenDayStats.pnl >= 0 ? "text-emerald-400" : "text-rose-400"} font-black drop-shadow-[0_0_8px_currentColor]`}>
                                             {sevenDayStats.pnl > 0 ? '+' : ''}{sevenDayStats.pnl.toFixed(2)}$
                                         </span>
                                     </div>
                                 </div>
 
-                                {dailyDDStats.dd > 0 && dailyDDStats.dd < 2.5 && (
-                                    <div className="mt-2 p-3 bg-indigo-900/40 border border-indigo-500/30 rounded-xl flex gap-3 items-center shadow-inner relative z-10">
-                                        <Shield size={20} className="text-indigo-400 shrink-0" />
-                                        <span className="text-[11px] text-indigo-200 font-medium leading-tight">
-                                            Просадка под контролем. Не отклоняйтесь от стратегии. Рынок вернет свое.
+                                {isDDWarning && (
+                                    <div className="mt-2 p-3 bg-rose-900/40 border border-rose-500/50 rounded-xl flex gap-3 items-center shadow-inner relative z-10">
+                                        <AlertTriangle size={24} className="text-rose-400 shrink-0 animate-pulse" />
+                                        <span className="text-[11px] text-rose-200 font-medium leading-tight">
+                                            Высокая дневная просадка. Рекомендуется снизить активность или полностью остановить торговлю на сегодня.
                                         </span>
                                     </div>
                                 )}
@@ -1483,29 +1652,26 @@
                                 </h3>
                                 {activeTrade ? (
                                     <div className="flex flex-col gap-2.5 text-sm font-mono mt-1">
-                                        <div className="flex justify-between text-slate-300">
+                                        <div className="flex justify-between items-center text-slate-300">
                                             <span>Направление:</span> 
                                             <span className={`font-black uppercase px-2 py-0.5 rounded ${activeTrade.isLong ? 'bg-emerald-900/50 text-emerald-400' : 'bg-rose-900/50 text-rose-400'}`}>{activeTrade.type} 15M</span>
                                         </div>
-                                        <div className="flex justify-between text-slate-300">
-                                            <span>Паттерн:</span> 
-                                            <span className="text-fuchsia-300 font-bold tracking-wider text-right">{activeTrade.pattern}</span>
-                                        </div>
-                                        <div className="flex justify-between text-slate-300">
-                                            <span>Ожидаемый RR:</span> 
-                                            <span className="text-white font-bold">{activeTrade.expectedRR}</span>
-                                        </div>
-                                        <div className="flex justify-between text-slate-300">
+                                        <div className="flex justify-between items-center text-slate-300">
                                             <span>Риск / Объем:</span> 
                                             <span className="text-white font-bold">{activeTrade.stakeAmount?.toFixed(2)} USDT</span>
                                         </div>
-                                        <div className="flex justify-between text-slate-300 border-t border-slate-700/50 pt-2 mt-1">
-                                            <span>Цена входа:</span> 
-                                            <span className="text-white font-bold drop-shadow-md">{formatPrice(activeTrade.entryPrice)}</span>
+                                        <div className="flex justify-between items-center text-slate-300">
+                                            <span>Управление:</span> 
+                                            {activeTrade.isPartialClosed ? 
+                                                <span className="text-[10px] bg-amber-600/30 text-amber-300 px-2 py-1 rounded font-black border border-amber-500/50">50% В ТРЕЙЛИНГЕ</span>
+                                                : 
+                                                <span className="text-[10px] bg-indigo-600/30 text-indigo-300 px-2 py-1 rounded font-black border border-indigo-500/50">ОЖИДАНИЕ +1R</span>
+                                            }
                                         </div>
-                                        <div className="mt-2 bg-black/30 p-2 rounded border border-white/5 flex items-center justify-center gap-3">
-                                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_#34d399]"></div>
-                                            <span className="text-[11px] text-emerald-300 font-bold tracking-widest uppercase">Сделка в работе</span>
+                                        <div className="mt-2 bg-black/30 p-2 rounded border border-white/5 flex flex-col gap-1 text-[10px]">
+                                            <div className="flex justify-between text-slate-400"><span>Вход:</span> <span className="text-white">{formatPrice(activeTrade.entryPrice)}</span></div>
+                                            <div className="flex justify-between text-slate-400"><span>Стоп-Лосс:</span> <span className={activeTrade.isPartialClosed ? 'text-amber-400' : 'text-rose-400'}>{formatPrice(activeTrade.trailingSL)}</span></div>
+                                            {!activeTrade.isPartialClosed && <div className="flex justify-between text-slate-400"><span>Тейк (50%):</span> <span className="text-emerald-400">{formatPrice(activeTrade.level1R)}</span></div>}
                                         </div>
                                     </div>
                                 ) : (
@@ -1520,24 +1686,23 @@
 
                             <div className="flex-1 luxury-card rounded-2xl p-5 flex flex-col overflow-hidden">
                                 <h3 className="text-sm font-black tracking-widest text-slate-200 uppercase oswald-font mb-4 border-b border-purple-500/30 pb-2 flex justify-between items-center">
-                                    Журнал (7D)
-                                    <div className="text-[9px] px-2 py-0.5 bg-black/50 border border-white/10 rounded">TOTAL: {sevenDayStats.count}</div>
+                                    Журнал (15M)
                                 </h3>
                                 <div className="flex-1 overflow-y-auto journal-scroll pr-2 flex flex-col gap-2.5">
-                                    {tradesHistory.filter(t => t.closeTime >= (Date.now() / 1000) - (7 * 24 * 3600)).length === 0 ? (
+                                    {tradesHistory.length === 0 ? (
                                         <div className="text-xs text-slate-500 text-center font-mono mt-6">Ожидание первых сделок...</div>
-                                    ) : tradesHistory.filter(t => t.closeTime >= (Date.now() / 1000) - (7 * 24 * 3600)).map((t, idx) => (
+                                    ) : tradesHistory.map((t, idx) => (
                                         <div key={t.id || idx} className="bg-black/50 p-3.5 rounded-xl border border-white/5 flex flex-col gap-2 hover:border-purple-500/40 hover:bg-[#120920] transition-all cursor-default group">
                                             <div className="flex justify-between items-center">
                                                 <div className="flex gap-2 items-center">
                                                     <span className={`text-[10px] font-black tracking-widest uppercase px-2 py-1 rounded shadow-inner ${t.type === 'LONG' ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-500/20' : 'bg-rose-900/40 text-rose-400 border border-rose-500/20'}`}>{t.type}</span>
-                                                    <span className="text-[9px] text-fuchsia-300 font-bold ml-1 truncate" title={t.pattern}>{t.pattern} ({t.score})</span>
+                                                    {t.isPartialClosed && <span className="text-[8px] px-1.5 py-0.5 bg-amber-500/20 text-amber-300 rounded border border-amber-500/40" title="Был активирован трейлинг">TRL</span>}
+                                                    <span className="text-[8px] text-slate-500 font-mono tracking-widest ml-1">{t.realizedR ? `${t.realizedR > 0 ? '+' : ''}${t.realizedR.toFixed(1)}R` : ''}</span>
                                                 </div>
                                                 <span className={`text-sm font-black ${t.result?.includes('WIN') ? 'text-emerald-400' : 'text-rose-500'}`}>{t.pnl > 0 ? '+' : ''}{t.pnl?.toFixed(2)}$</span>
                                             </div>
                                             <div className="flex justify-between text-[10px] font-mono text-slate-400 group-hover:text-slate-300 transition-colors">
-                                                <span>RR: {t.expectedRR}</span>
-                                                <span>OUT: {formatPrice(t.closePrice)}</span>
+                                                <span>{t.pattern}</span>
                                             </div>
                                         </div>
                                     ))}
@@ -1552,22 +1717,22 @@
         const initReactApp = () => {
             const rootElement = document.getElementById('root');
             if (!rootElement) {
-                console.error("Элемент #root не найден");
-                showError("Элемент #root не найден", "DOM Init", "");
+                console.warn("Ожидание загрузки DOM-элемента #root...");
                 return;
             }
             if (!window.ReactDOM || !window.React) {
-                console.error("ReactDOM не загружен");
-                showError("React или ReactDOM не загружены", "DOM Init", "");
+                showError("Библиотеки React не загружены. Обновите страницу.", "Init", "");
                 return;
             }
-
             try {
-                const root = window.ReactDOM.createRoot(rootElement);
-                root.render(<App />);
+                if (window.ReactDOM.createRoot) {
+                    const root = window.ReactDOM.createRoot(rootElement);
+                    root.render(<App />);
+                } else {
+                    window.ReactDOM.render(<App />, rootElement);
+                }
             } catch (e) {
-                console.error("React init error:", e);
-                showError("Не удалось инициализировать React: " + e.message, "DOM Init", "");
+                showError("Не удалось инициализировать React DOM: " + e.message, "DOM Init", "");
             }
         };
 
