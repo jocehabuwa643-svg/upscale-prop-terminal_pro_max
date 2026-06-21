@@ -130,20 +130,36 @@
         .trade-loss-box { background: linear-gradient(180deg, rgba(225, 29, 72, 0.15) 0%, rgba(159, 18, 57, 0.05) 100%); border-color: rgba(225, 29, 72, 0.3); border-top-color: rgba(225, 29, 72, 0.6); }
         .trade-trailed-box { background: linear-gradient(180deg, rgba(59, 130, 246, 0.15) 0%, rgba(29, 78, 216, 0.05) 100%); border-color: rgba(59, 130, 246, 0.3); border-top-color: rgba(59, 130, 246, 0.6); }
 
-        /* ОБЪЁМНЫЕ СТЕКЛЯННЫЕ ЗОНЫ */
+        /* ТОНКИЕ МЕРЦАЮЩИЕ СТЕКЛЯННЫЕ ЗОНЫ */
         .glass-zone {
-            backdrop-filter: blur(15px) saturate(200%);
-            border-radius: 12px;
-            box-shadow: inset 0 2px 10px rgba(255,255,255,0.3), inset 0 -2px 10px rgba(0,0,0,0.2), 0 10px 30px rgba(0,0,0,0.6);
-            border: 1px solid rgba(255,255,255,0.3);
-            border-top: 1px solid rgba(255,255,255,0.6);
+            backdrop-filter: blur(4px);
+            border-radius: 6px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.15);
             transition: all 0.3s ease;
         }
-        .glass-zone-tp-long { background: linear-gradient(180deg, rgba(16, 185, 129, 0.35), rgba(16, 185, 129, 0.1)); border-color: rgba(16, 185, 129, 0.5); border-top-color: rgba(16, 185, 129, 0.8); }
-        .glass-zone-tp-short { background: linear-gradient(180deg, rgba(225, 29, 72, 0.35), rgba(225, 29, 72, 0.1)); border-color: rgba(225, 29, 72, 0.5); border-top-color: rgba(225, 29, 72, 0.8); }
-        .glass-zone-sl { background: linear-gradient(180deg, rgba(168, 85, 247, 0.35), rgba(139, 92, 246, 0.1)); border-color: rgba(168, 85, 247, 0.5); border-top-color: rgba(168, 85, 247, 0.8); }
+        .gentle-pulse-anim {
+            animation: gentle-pulse 2.5s infinite alternate ease-in-out;
+        }
+        @keyframes gentle-pulse {
+            0% { opacity: 0.65; box-shadow: 0 0 10px rgba(255,255,255,0.05); }
+            100% { opacity: 1; box-shadow: 0 0 25px rgba(255,255,255,0.15); }
+        }
+        .glass-zone-tp-long { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); border-top-color: rgba(16, 185, 129, 0.6); }
+        .glass-zone-tp-short { background: rgba(225, 29, 72, 0.15); border-color: rgba(225, 29, 72, 0.4); border-top-color: rgba(225, 29, 72, 0.6); }
+        .glass-zone-sl { background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4); border-top-color: rgba(168, 85, 247, 0.6); }
         .glass-zone-interest-res { background: linear-gradient(90deg, transparent, rgba(225, 29, 72, 0.2) 50%, transparent); border-top: 1px solid rgba(225,29,72,0.6); border-bottom: 1px solid rgba(225,29,72,0.6); box-shadow: 0 0 40px rgba(225,29,72,0.2); }
         .glass-zone-interest-sup { background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.2) 50%, transparent); border-top: 1px solid rgba(16,185,129,0.6); border-bottom: 1px solid rgba(16,185,129,0.6); box-shadow: 0 0 40px rgba(16,185,129,0.2); }
+
+        /* АНИМАЦИИ ЭКРАНА ЗАГРУЗКИ */
+        @keyframes spin-pyramid {
+            0% { transform: rotateY(0deg) rotateX(10deg); }
+            100% { transform: rotateY(360deg) rotateX(10deg); }
+        }
+        @keyframes eye-pulse {
+            0% { filter: drop-shadow(0 0 5px rgba(217,70,239,0.4)) scale(0.95); }
+            100% { filter: drop-shadow(0 0 25px rgba(217,70,239,0.9)) scale(1.05); }
+        }
 
         .scanner-container {
             background: radial-gradient(circle at center, rgba(10, 5, 20, 0.9) 0%, #030108 100%);
@@ -477,14 +493,12 @@
             const riskDist = Math.abs(entryPrice - slPrice);
             
             // SMART DECISION LOGIC
-            // Если условия средние (score < 85) -> Закрытие на 1.0%
-            // Если условия благоприятные (score >= 85) -> Трейлинг до 2.0%
             const decision = finalScore >= 85 ? 'TRAIL' : 'FIXED';
             const targetPercentValue = decision === 'TRAIL' ? 2.0 : 1.0; 
             const tpDist = entryPrice * (targetPercentValue / 100);
             const levelTarget = isLong ? entryPrice + tpDist : entryPrice - tpDist;
             
-            // Уровень для частичной фиксации 50% (оставляем старую логику: +1R)
+            // Уровень для частичной фиксации 50% (+1R)
             const level1R = isLong ? entryPrice + riskDist : entryPrice - riskDist;
 
             return { 
@@ -698,18 +712,21 @@
                             const left = Math.max(0, xEntry);
                             const width = Math.max(150, overlayRef.current.clientWidth - left);
 
-                            tpZone.style.display = 'flex';
-                            tpZone.style.left = `${left}px`; tpZone.style.width = `${width}px`;
-                            const tpTop = Math.min(yEntry, yTP);
-                            const tpHeight = Math.max(25, Math.abs(yTP - yEntry));
-                            tpZone.style.top = `${tpTop}px`; tpZone.style.height = `${tpHeight}px`;
-                            tpZone.className = `glass-zone absolute z-10 flex justify-center items-center overflow-hidden ${activeTrade.isLong ? 'glass-zone-tp-long' : 'glass-zone-tp-short'}`;
+                            if (!activeTrade.isPartialClosed) {
+                                tpZone.style.display = 'flex';
+                                tpZone.style.left = `${left}px`; tpZone.style.width = `${width}px`;
+                                const tpHeight = 28;
+                                tpZone.style.top = `${yTP - tpHeight/2}px`; tpZone.style.height = `${tpHeight}px`;
+                                tpZone.className = `glass-zone gentle-pulse-anim absolute z-[5] flex justify-center items-center overflow-hidden ${activeTrade.isLong ? 'glass-zone-tp-long' : 'glass-zone-tp-short'}`;
+                            } else {
+                                tpZone.style.display = 'none';
+                            }
 
                             slZone.style.display = 'flex';
                             slZone.style.left = `${left}px`; slZone.style.width = `${width}px`;
-                            const slTop = Math.min(yEntry, ySL);
-                            const slHeight = Math.max(25, Math.abs(ySL - yEntry));
-                            slZone.style.top = `${slTop}px`; slZone.style.height = `${slHeight}px`;
+                            const slHeight = 28;
+                            slZone.style.top = `${ySL - slHeight/2}px`; slZone.style.height = `${slHeight}px`;
+                            slZone.className = `glass-zone gentle-pulse-anim glass-zone-sl absolute z-[5] flex justify-center items-center overflow-hidden`;
                         } else {
                             if(tpZone) tpZone.style.display = 'none'; 
                             if(slZone) slZone.style.display = 'none';
@@ -796,19 +813,21 @@
                     </div>
 
                     <div id="active-tp-zone" style={{display: 'none'}}>
-                        {activeTrade && (
-                            <div className="text-white/90 font-black text-[10px] tracking-widest drop-shadow-md bg-black/40 px-3 py-1.5 rounded-xl backdrop-blur-md border border-white/20 flex flex-col items-center shadow-[0_5px_15px_rgba(0,0,0,0.5)]">
+                        {activeTrade && !activeTrade.isPartialClosed && (
+                            <div className="text-white/90 font-black text-[9px] tracking-widest drop-shadow-md bg-black/60 px-3 py-1 rounded-lg backdrop-blur-md border border-white/20 flex flex-row gap-2 items-center shadow-[0_5px_15px_rgba(0,0,0,0.5)]">
                                 <span>TAKE PROFIT (+{activeTrade.targetPercent}%)</span>
-                                <span className="text-[11px] opacity-90 mt-0.5">{activeTrade.levelTarget?.toFixed(2)}</span>
+                                <span className="opacity-70">|</span>
+                                <span className="opacity-90">{activeTrade.levelTarget?.toFixed(2)}</span>
                             </div>
                         )}
                     </div>
                     
-                    <div id="active-sl-zone" className="glass-zone glass-zone-sl absolute z-10 flex justify-center items-center overflow-hidden" style={{display: 'none'}}>
+                    <div id="active-sl-zone" className="glass-zone gentle-pulse-anim glass-zone-sl absolute z-[5] flex justify-center items-center overflow-hidden" style={{display: 'none'}}>
                         {activeTrade && (
-                            <div className="text-white/90 font-black text-[10px] tracking-widest drop-shadow-md bg-black/40 px-3 py-1.5 rounded-xl backdrop-blur-md border border-white/20 flex flex-col items-center shadow-[0_5px_15px_rgba(0,0,0,0.5)]">
+                            <div className="text-white/90 font-black text-[9px] tracking-widest drop-shadow-md bg-black/60 px-3 py-1 rounded-lg backdrop-blur-md border border-white/20 flex flex-row gap-2 items-center shadow-[0_5px_15px_rgba(0,0,0,0.5)]">
                                 <span>{activeTrade.isPartialClosed ? 'TRAIL SL' : 'STOP LOSS'}</span>
-                                <span className="text-[11px] opacity-90 mt-0.5">{(activeTrade.trailingSL || activeTrade.slPrice)?.toFixed(2)}</span>
+                                <span className="opacity-70">|</span>
+                                <span className="opacity-90">{(activeTrade.trailingSL || activeTrade.slPrice)?.toFixed(2)}</span>
                             </div>
                         )}
                     </div>
@@ -1006,6 +1025,8 @@
                 };
                 if (type === 'startup') { playTone(440, 'sine', 0.2, 0.05); playTone(554.37, 'sine', 0.2, 0.05, 0.1); playTone(659.25, 'sine', 0.4, 0.05, 0.2); }
                 if (type === 'scan') playTone(1200 + Math.random()*300, 'sine', 0.05, 0.005);
+                if (type === 'tick') { playTone(800 + Math.random()*200, 'sine', 0.05, 0.015); }
+                if (type === 'playback-end') { playTone(523.25, 'triangle', 0.1, 0.05); playTone(659.25, 'triangle', 0.2, 0.05, 0.1); }
                 if (type === 'found') { playTone(600, 'triangle', 0.1, 0.03); playTone(800, 'triangle', 0.1, 0.03, 0.1); }
                 if (type === 'signal') { playTone(880, 'square', 0.1, 0.04); playTone(1760, 'square', 0.2, 0.04, 0.1); }
                 if (type === 'win') { playTone(523.25, 'triangle', 0.2, 0.05); playTone(659.25, 'triangle', 0.2, 0.05, 0.1); playTone(783.99, 'triangle', 0.4, 0.05, 0.2); playTone(1046.50, 'triangle', 0.6, 0.05, 0.3); }
@@ -1391,7 +1412,7 @@
                     }
                 }
                 
-                updateTradeHistory(histTrades.reverse());
+                updateTradeHistory([...histTrades].reverse());
                 
                 setGlobalMaxDD(maxDDRef.current);
                 propBalanceRef.current = simBalance;
@@ -1400,27 +1421,26 @@
                 setPropBalance(simBalance); 
                 setTotalPnL(simBalance - INITIAL_BALANCE);
 
-                setAppPhase('СИНХРОНИЗАЦИЯ ГРАФИКА...');
-                for(let trade of histTrades.reverse()) { 
+                // --- НОВАЯ ПОСЛЕДОВАТЕЛЬНОСТЬ ПРОВОДКИ И ПРОСМОТРА СДЕЛОК ---
+                setAppState('PLAYBACK');
+                setAppPhase('ВИЗУАЛИЗАЦИЯ ИСТОРИИ СДЕЛОК...');
+                await sleep(500); 
+
+                for(let trade of histTrades) { 
                     if (!engineActive.current) break;
-                    chartInstance.current.timeScale().setVisibleLogicalRange({ from: trade.logicalIndex - 50, to: trade.logicalIndex + 50 });
-                    setReplayTrade(trade); playSound('scan'); await sleep(50);
+                    chartInstance.current.timeScale().setVisibleLogicalRange({ from: trade.logicalIndex - 30, to: trade.logicalIndex + 30 });
+                    setReplayTrade(trade); 
+                    playSound('tick'); 
+                    await sleep(80);
                 }
                 setReplayTrade(null);
-                chartInstance.current.timeScale().scrollToRealTime();
+                playSound('playback-end');
                 
                 const pnlDollars = simBalance - INITIAL_BALANCE;
-                const pnlPercent = (pnlDollars / INITIAL_BALANCE) * 100;
                 const wins = histTrades.filter(t => t.pnl > 0).length;
-                const winrate = histTrades.length > 0 ? (wins / histTrades.length * 100) : 0;
-                
-                setAppState('RESULTS_PAUSE');
-                setAppPhase(`ИСТОРИЯ ЗАГРУЖЕНА. СДЕЛОК ЗА 30 ДНЕЙ: ${histTrades.length}.`);
                 
                 enqueueSpeech(`Завершен анализ за 30 дней. При фиксированном риске ноль целых семьдесят пять сотых процента на сделку, ваша итоговая прибыль составила бы ${Math.round(pnlDollars)} долларов.`, 'bt-stats', 0);
                 
-                await sleep(9000); 
-
                 const winningTrades = histTrades.filter(t => t.pnl > 0);
                 if (winningTrades.length > 0) {
                     const sortedWins = [...winningTrades].sort((a,b) => b.pnl - a.pnl);
@@ -1428,7 +1448,7 @@
                     const randomStrongTrade = topWins[Math.floor(Math.random() * topWins.length)];
 
                     setAppState('BEST_TRADE_REVIEW');
-                    setAppPhase('ОБЗОР СИЛЬНОЙ СДЕЛКИ');
+                    setAppPhase('ОБЗОР СЛУЧАЙНОЙ УСПЕШНОЙ СДЕЛКИ');
                     setBestTradeReview(randomStrongTrade);
                     
                     chartInstance.current.timeScale().setVisibleLogicalRange({ from: randomStrongTrade.logicalIndex - 15, to: randomStrongTrade.logicalIndex + 45 });
@@ -1444,11 +1464,12 @@
 
                 chartInstance.current.timeScale().scrollToRealTime();
                 enqueueSpeech('Перехожу в режим активного сканирования.', 'bt-end', 0);
+                setAppState('SCANNING');
                 
                 let lastEvaluatedCandleTime = data15m[data15m.length - 1].time;
                 engineStateRef.current.dailyStartBalance = simBalance;
 
-                // --- 3. LIVE SCANNING LOOP (HYBRID) ---
+                // --- LIVE SCANNING LOOP (HYBRID) ---
                 while (engineActive.current) {
                     try {
                         const nowSec = Math.floor(Date.now() / 1000);
@@ -1839,6 +1860,49 @@
                     <div className="bg-orb-2 pointer-events-none opacity-80"></div>
                     <div className="absolute inset-0 bg-grid-pattern pointer-events-none opacity-50"></div>
 
+                    {appState === 'BACKTEST' && (
+                        <div className="absolute inset-0 z-[200] bg-[#030108]/95 backdrop-blur-2xl flex flex-col items-center justify-center transition-opacity duration-300 pointer-events-none">
+                            <div className="glass-panel-heavy p-12 flex flex-col items-center justify-center rounded-[2.5rem] border border-fuchsia-500/30 shadow-[0_0_100px_rgba(217,70,239,0.15)] relative overflow-hidden max-w-xl text-center">
+                                <div className="absolute inset-0 bg-gradient-to-br from-fuchsia-500/10 to-indigo-500/10"></div>
+                                
+                                <div className="relative w-40 h-40 mb-10 z-10" style={{ perspective: '1000px' }}>
+                                    <div className="absolute inset-0 animate-[spin-pyramid_4s_linear_infinite]" style={{ transformStyle: 'preserve-3d' }}>
+                                        <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_20px_rgba(217,70,239,0.6)] overflow-visible">
+                                            <defs>
+                                                <linearGradient id="pyramid-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                    <stop offset="0%" stopColor="rgba(217,70,239,0.85)" />
+                                                    <stop offset="50%" stopColor="rgba(168,85,247,0.45)" />
+                                                    <stop offset="100%" stopColor="rgba(79,70,229,0.85)" />
+                                                </linearGradient>
+                                                <filter id="glow-pyramid">
+                                                    <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                                                    <feMerge>
+                                                        <feMergeNode in="coloredBlur"/>
+                                                        <feMergeNode in="SourceGraphic"/>
+                                                    </feMerge>
+                                                </filter>
+                                            </defs>
+                                            <polygon points="50,15 90,85 10,85" fill="url(#pyramid-grad)" stroke="rgba(255,255,255,0.7)" strokeWidth="1" filter="url(#glow-pyramid)" />
+                                            <line x1="50" y1="15" x2="50" y2="85" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
+                                            <line x1="10" y1="85" x2="90" y2="85" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
+                                            
+                                            <g className="animate-[eye-pulse_2.5s_infinite_alternate]" style={{ transformOrigin: '50% 65%' }}>
+                                                <path d="M 32,65 Q 50,52 68,65 Q 50,78 32,65 Z" fill="rgba(255,255,255,0.95)" stroke="#d946ef" strokeWidth="1.5" />
+                                                <circle cx="50" cy="65" r="6.5" fill="#0f172a" />
+                                                <circle cx="48" cy="63" r="2.5" fill="#fff" />
+                                            </g>
+                                        </svg>
+                                    </div>
+                                    <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-32 h-6 bg-fuchsia-500/40 blur-[15px] rounded-full"></div>
+                                </div>
+                                
+                                <h2 className="text-[14px] leading-relaxed font-black text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-200 to-indigo-200 tracking-[0.25em] oswald-font text-center z-10 drop-shadow-md">
+                                    СКАНИРОВАНИЕ РЫНКА<br/>И ПРОВЕДЕНИЕ 30-ДНЕВНОГО БЭКТЕСТА...
+                                </h2>
+                            </div>
+                        </div>
+                    )}
+
                     {appState === 'PAUSED' && (
                         <div className="absolute inset-0 z-50 bg-[#030108]/95 backdrop-blur-2xl flex flex-col items-center justify-center p-6 text-center border-4 border-rose-900/50">
                             <Shield size={100} className="text-rose-500 mb-8 drop-shadow-[0_0_40px_rgba(225,29,72,0.9)] animate-pulse" />
@@ -1956,7 +2020,7 @@
                                     </div>
                                 )}
 
-                                <div className={`absolute top-5 left-5 z-20 bg-black/60 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 flex flex-col pointer-events-none transition-opacity ${appState === 'SCANNING' ? 'opacity-0' : 'opacity-100'}`}>
+                                <div className={`absolute top-5 left-5 z-20 bg-black/60 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 flex flex-col pointer-events-none transition-opacity ${appState === 'SCANNING' || appState === 'BACKTEST' ? 'opacity-0' : 'opacity-100'}`}>
                                     <span className="text-xl font-black text-white oswald-font tracking-widest drop-shadow-md">BTC/USDT</span>
                                     <span className="text-sm text-fuchsia-300 font-mono font-bold mt-1">Price: {formatPrice(currentPrice.current)}</span>
                                 </div>
@@ -2099,65 +2163,34 @@
 
         console.log("[System] Компонент App успешно определен, подготовка к инициализации...");
 
-        function initReactApp() {
-            let attempts = 0;
-            const maxAttempts = 15;
+        function initApp() {
+            // Проверяем, что React и ReactDOM загружены
+            if (!window.React || !window.ReactDOM) {
+                console.error("React или ReactDOM не загружены");
+                return;
+            }
 
-            const tryInit = () => {
-                attempts++;
-                console.log(`[Init] Попытка ${attempts} из ${maxAttempts}...`);
+            const rootElement = document.getElementById('root');
+            if (!rootElement) {
+                console.error("Элемент #root не найден");
+                return;
+            }
 
-                const ReactLib = window.React;
-                const ReactDOMLib = window.ReactDOM;
-                const rootElement = document.getElementById('root');
-
-                if (!ReactLib || !ReactDOMLib) {
-                    console.warn(`[Init] Попытка ${attempts}: React или ReactDOM ещё не загружены`);
-                    if (attempts < maxAttempts) {
-                        setTimeout(tryInit, 100);
-                    } else {
-                        showError("React или ReactDOM не загружены из CDN.", "Init", "");
-                    }
-                    return;
-                }
-
-                if (!rootElement) {
-                    console.warn(`[Init] Попытка ${attempts}: Элемент #root не найден`);
-                    if (attempts < maxAttempts) {
-                        setTimeout(tryInit, 100);
-                    } else {
-                        showError("Элемент #root не найден", "Init", "");
-                    }
-                    return;
-                }
-
-                try {
-                    console.log("[Init] Запуск ReactDOM.createRoot...");
-                    const root = ReactDOMLib.createRoot(rootElement);
-                    
-                    console.log("[Init] Рендер ReactLib.createElement(App)...");
-                    root.render(ReactLib.createElement(App));
-                    
-                    console.log("%c[React] Приложение успешно инициализировано", "color: #22c55e; font-weight: bold; font-size: 14px;");
-                } catch (error) {
-                    console.error("Ошибка при рендере React:", error);
-                    showError("Ошибка рендера React: " + error.message, "React Render", "");
-                }
-            };
-
-            tryInit();
+            try {
+                const root = window.ReactDOM.createRoot(rootElement);
+                root.render(window.React.createElement(App));
+                console.log("%c[App] React приложение успешно запущено", "color: #22c55e");
+            } catch (error) {
+                console.error("Ошибка при запуске React:", error);
+            }
         }
 
-        console.log("[System] Текущее состояние document.readyState:", document.readyState);
-        if (document.readyState === 'complete' || document.readyState === 'interactive') {
-            console.log("[System] DOM готов. Вызываем initReactApp с задержкой 80мс...");
-            setTimeout(initReactApp, 80);
+        // Запуск приложения
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initApp);
         } else {
-            console.log("[System] DOM еще загружается. Вешаем слушатель на DOMContentLoaded...");
-            document.addEventListener('DOMContentLoaded', () => {
-                console.log("[System] Событие DOMContentLoaded получено.");
-                setTimeout(initReactApp, 80);
-            });
+            // Если DOM уже готов
+            setTimeout(initApp, 50);
         }
     </script>
 </body>
