@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>UPSCALE.TRADE - PROP TERMINAL PRO MAX (HYBRID EDITION)</title>
+    <title>UPSCALE.TRADE - PROP TERMINAL PRO MAX (30D EDITION)</title>
     
     <!-- СТАБИЛЬНЫЕ UMD-БИБЛИОТЕКИ ЧЕРЕЗ CDNJS -->
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -184,7 +184,7 @@
     <div id="error-boundary" style="display:none; position:fixed; top:0; left:0; right:0; background:rgba(225,29,72,0.95); color:white; padding:20px; z-index:99999; font-family:monospace; font-size:14px; backdrop-filter:blur(10px); border-bottom: 2px solid white;"></div>
     
     <script>
-        // Глобальный и максимально строгий обработчик ошибок
+        console.log("[System] Скрипты загружаются. Инициализация обработчиков ошибок...");
         const showError = (msg, src, line) => {
             const errDiv = document.getElementById('error-boundary');
             if (errDiv && msg && !msg.includes('ResizeObserver')) {
@@ -195,7 +195,7 @@
         window.addEventListener('error', (e) => showError(e.message, e.filename, e.lineno));
         window.addEventListener('unhandledrejection', (e) => showError(e.reason?.message || e.reason, 'Promise', ''));
 
-        // Заглушки для предотвращения конфликтов модулей
+        // Блокируем подгрузку модулей
         window.exports = {};
         window.module = { exports: window.exports };
         window.require = function(moduleName) {
@@ -204,7 +204,6 @@
             return {};
         };
 
-        // Принудительно задаем classic runtime для Babel Standalone
         if (window.Babel) {
             window.Babel.registerPreset('react-classic-strict', {
                 presets: [[window.Babel.availablePresets['react'], { runtime: 'classic' }]]
@@ -215,9 +214,15 @@
     <div id="root"></div>
 
     <script type="text/babel" data-presets="react-classic-strict">
-        const React = window.React;
-        const ReactDOM = window.ReactDOM;
-        const { useState, useEffect, useRef, useCallback, useMemo } = React || {};
+        const React = window.React || {};
+        const ReactDOM = window.ReactDOM || {};
+        
+        // Ленивая инициализация хуков 
+        const useState = (...args) => window.React.useState(...args);
+        const useEffect = (...args) => window.React.useEffect(...args);
+        const useRef = (...args) => window.React.useRef(...args);
+        const useCallback = (...args) => window.React.useCallback(...args);
+        const useMemo = (...args) => window.React.useMemo(...args);
 
         const suppressResizeObserverErrors = () => {
             window.addEventListener('error', e => {
@@ -226,35 +231,35 @@
         };
         suppressResizeObserverErrors();
 
-        // Иконки
-        const Shield = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 4.81 17 6 19 6a1 1 0 0 1 1 1z"/></svg>);
-        const Cpu = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>);
-        const Activity = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>);
-        const Globe = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>);
-        const Radar = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 5.49A10 10 0 0 0 5.3 19.38"/><path d="M20 8.74A10 10 0 0 1 17.38 20"/><path d="M16 8a6 6 0 0 0-8.5-1.5"/><path d="M7.5 16.5a6 6 0 0 0 9.2-.5"/><path d="M12 12v.01"/></svg>);
-        const Clock = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>);
-        const AlertTriangle = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>);
-        const MousePointer = React.memo(({ size=24, className="" }) => (
+        // Icons
+        const Shield = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 4.81 17 6 19 6a1 1 0 0 1 1 1z"/></svg>);
+        const Cpu = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>);
+        const Activity = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>);
+        const Globe = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>);
+        const Radar = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 5.49A10 10 0 0 0 5.3 19.38"/><path d="M20 8.74A10 10 0 0 1 17.38 20"/><path d="M16 8a6 6 0 0 0-8.5-1.5"/><path d="M7.5 16.5a6 6 0 0 0 9.2-.5"/><path d="M12 12v.01"/></svg>);
+        const Clock = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>);
+        const AlertTriangle = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>);
+        const MousePointer = window.React.memo(({ size=24, className="" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="rgba(255,255,255,0.9)" stroke="#0f172a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
                 <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
                 <path d="M13 13l6 6"/>
             </svg>
         ));
-        const ArrowUp = React.memo(({ className="" }) => (
+        const ArrowUp = window.React.memo(({ className="" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
         ));
-        const ArrowDown = React.memo(({ className="" }) => (
+        const ArrowDown = window.React.memo(({ className="" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
         ));
-        const TrendingUp = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>);
-        const TrendingDown = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline></svg>);
-        const InfoIcon = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>);
+        const TrendingUp = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>);
+        const TrendingDown = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline></svg>);
+        const InfoIcon = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>);
 
-        // Константы риск-менеджмента
+        // Константы
         const INITIAL_BALANCE = 5000;
         const RISK_TIERS = [0.0075, 0.005, 0.0025]; 
-        const MAIN_TIMEFRAME = 'HYBRID 1H/15M';
-        const MAX_DAILY_DD = 0.025; // 2.5%
+        const MAIN_TIMEFRAME = 'HYBRID 1H/15M (30D)';
+        const MAX_DAILY_DD = 0.025; 
 
         const fetchWithTimeout = async (url, options = {}) => {
             const { timeout = 4000 } = options;
@@ -273,26 +278,55 @@
                 'https://api2.binance.com', 'https://api3.binance.com',
                 'https://data-api.binance.vision'
             ];
+            
             for (let retry = 0; retry < 3; retry++) {
                 for (let base of endpoints) {
                     try {
-                        const controller = new AbortController();
-                        const id = setTimeout(() => controller.abort(), 4000);
-                        let response = await fetch(`${base}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${count}`, { signal: controller.signal });
-                        clearTimeout(id);
-                        if (response.ok) {
-                            const data = await response.json();
-                            return data.map(d => ({
-                                time: d[0] / 1000, open: parseFloat(d[1]), high: parseFloat(d[2]),
-                                low: parseFloat(d[3]), close: parseFloat(d[4]), volume: parseFloat(d[5])
-                            }));
+                        let allKlines = [];
+                        let remaining = count;
+                        let endTime = null;
+                        
+                        while(remaining > 0) {
+                            let batch = Math.min(remaining, 1000);
+                            let url = `${base}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${batch}`;
+                            if (endTime) url += `&endTime=${endTime}`;
+                            
+                            const controller = new AbortController();
+                            const id = setTimeout(() => controller.abort(), 4000);
+                            let response = await fetch(url, { signal: controller.signal });
+                            clearTimeout(id);
+                            
+                            if (response.ok) {
+                                const data = await response.json();
+                                if (data.length === 0) break;
+                                allKlines = data.concat(allKlines); 
+                                endTime = data[0][0] - 1; 
+                                remaining -= data.length;
+                            } else {
+                                throw new Error('API Error');
+                            }
                         }
-                    } catch(e) {}
+                        
+                        return allKlines.map(d => ({
+                            time: d[0] / 1000, open: parseFloat(d[1]), high: parseFloat(d[2]),
+                            low: parseFloat(d[3]), close: parseFloat(d[4]), volume: parseFloat(d[5])
+                        }));
+                    } catch(e) { }
                 }
                 await new Promise(r => setTimeout(r, 2000));
             }
             return null; 
           }
+        };
+
+        const ScannerAPIRealTime = {
+            async getOrderBook(symbol, limit = 10) {
+                try {
+                    let response = await fetchWithTimeout(`https://api.binance.com/api/v3/depth?symbol=${symbol}&limit=${limit}`, { timeout: 2000 });
+                    if (response.ok) return await response.json();
+                } catch(e) {}
+                return null;
+            }
         };
 
         const formatPrice = (p) => p ? p.toFixed(2) : '0.00';
@@ -353,15 +387,15 @@
             const distTop = cUpper - curr15m.close;
             const distBot = curr15m.close - cLower;
             
-            const inResZone = distTop > -cAtr * 1.5 && distTop < cAtr * 2.5;
-            const inSupZone = distBot > -cAtr * 1.5 && distBot < cAtr * 2.5;
+            const inResZone = distTop > -cAtr * 2.0 && distTop < cAtr * 3.0;
+            const inSupZone = distBot > -cAtr * 2.0 && distBot < cAtr * 3.0;
             
             if (!inResZone && !inSupZone) return { valid: false, score: 0 };
 
             let sumVol = 0;
             for(let i=1; i<=20; i++) sumVol += data15m[evalIdx-i].volume;
             const avgVol = sumVol / 20;
-            const hasVolume = curr15m.volume > avgVol * 1.05;
+            const hasVolume = curr15m.volume > avgVol * 1.1;
 
             const body = Math.abs(curr15m.close - curr15m.open);
             const upperWick = curr15m.high - Math.max(curr15m.close, curr15m.open);
@@ -370,8 +404,8 @@
             const isBullish = curr15m.close > curr15m.open;
             const isBearish = curr15m.close < curr15m.open;
 
-            const isBullishRejection = lowerWick > body * 1.2 && isBullish;
-            const isBearishRejection = upperWick > body * 1.2 && isBearish;
+            const isBullishRejection = lowerWick > body * 1.0 && isBullish;
+            const isBearishRejection = upperWick > body * 1.0 && isBearish;
 
             const bosShort = curr15m.close < prev15m.low;
             const bosLong = curr15m.close > prev15m.high;
@@ -431,7 +465,7 @@
             };
         }
 
-        const CompactSpeedometer = React.memo(({ value, label, color }) => {
+        const CompactSpeedometer = window.React.memo(({ value, label, color }) => {
             const safeValue = isNaN(value) ? 50 : Math.max(0, Math.min(100, value));
             const angle = -90 + (safeValue / 100) * 180;
             const radius = 25; const circumference = Math.PI * radius;
@@ -456,7 +490,7 @@
             );
         });
 
-        const TrendPixels = React.memo(() => {
+        const TrendPixels = window.React.memo(() => {
             const [pixels, setPixels] = useState([]);
             useEffect(() => {
                 const generate = () => Array.from({length: 24}).map(() => {
@@ -477,41 +511,46 @@
             );
         });
 
-        const OrderBookDepth = React.memo(({ price }) => {
+        const OrderBookDepth = window.React.memo(({ price, orderBook }) => {
             const p = price || 0;
-            if (!p) return <div className="text-xs text-slate-500 font-bold p-2 text-center">СИНХРОНИЗАЦИЯ ДОМ...</div>;
-            const formattedP = formatPrice(p); const step = p > 1000 ? 0.5 : p > 1 ? 0.005 : 0.00005;
+            if (!p || !orderBook) return <div className="text-xs text-slate-500 font-bold p-2 text-center h-full flex items-center justify-center">СИНХРОНИЗАЦИЯ ДОМ...</div>;
+            
+            const asks = orderBook.asks.slice(0, 4).reverse();
+            const bids = orderBook.bids.slice(0, 4);
+            const formattedP = formatPrice(p);
             
             return (
                 <div className="flex flex-col mono-font text-slate-100 px-3 justify-center h-full w-full relative bg-[rgba(10,5,20,0.5)] rounded-xl overflow-hidden">
                     <div className="flex justify-between text-slate-400 mb-2 border-b border-purple-500/20 pb-1.5 text-[10px] tracking-widest font-bold uppercase z-10"><span>ASK (Sell)</span><span>Vol</span></div>
                     <div className="space-y-1 mt-1 relative z-10">
-                        {[...Array(4)].map((_, i) => {
-                            const vol = Math.floor(Math.random() * 80 + 20); const width = `${Math.min(100, (vol / 100) * 100)}%`;
+                        {asks.map((ask, i) => {
+                            const vol = parseFloat(ask[1]).toFixed(3);
+                            const width = `${Math.min(100, (vol / 5) * 100)}%`;
                             return (
                             <div key={`ask-${i}`} className="flex justify-between text-[11px] text-rose-300 font-bold tracking-wider relative transition-all duration-300 group hover:text-rose-100">
                                 <div className="absolute right-0 top-0 bottom-0 bg-gradient-to-l from-rose-600/30 to-transparent rounded-sm transition-all duration-500" style={{width}}></div>
-                                <span className="relative z-10 pl-1">{formatPrice(p + (4 - i) * step)}</span><span className="relative z-10 pr-1 opacity-90">{vol}</span>
+                                <span className="relative z-10 pl-1">{parseFloat(ask[0]).toFixed(2)}</span><span className="relative z-10 pr-1 opacity-90">{vol}</span>
                             </div>)})}
                         
                         <div className="flex justify-between text-white bg-gradient-to-r from-purple-900/60 to-fuchsia-900/60 border border-purple-500/40 my-2 py-1 px-2 text-sm font-black shadow-[0_0_15px_rgba(168,85,247,0.3)] rounded relative overflow-hidden">
                             <div className="absolute inset-0 bg-[rgba(255,255,255,0.05)] animate-pulse"></div>
-                            <span className="relative z-10">{formattedP}</span><span className="relative z-10 text-purple-200">{Math.floor(Math.random() * 200 + 100)}</span>
+                            <span className="relative z-10">{formattedP}</span><span className="relative z-10 text-purple-200">REAL</span>
                         </div>
                         
-                        {[...Array(4)].map((_, i) => {
-                            const vol = Math.floor(Math.random() * 80 + 20); const width = `${Math.min(100, (vol / 100) * 100)}%`;
+                        {bids.map((bid, i) => {
+                            const vol = parseFloat(bid[1]).toFixed(3); 
+                            const width = `${Math.min(100, (vol / 5) * 100)}%`;
                             return (
                             <div key={`bid-${i}`} className="flex justify-between text-[11px] text-emerald-300 font-bold tracking-wider relative transition-all duration-300 group hover:text-emerald-100">
                                 <div className="absolute right-0 top-0 bottom-0 bg-gradient-to-l from-emerald-600/30 to-transparent rounded-sm transition-all duration-500" style={{width}}></div>
-                                <span className="relative z-10 pl-1">{formatPrice(p - (i + 1) * step)}</span><span className="relative z-10 pr-1 opacity-90">{vol}</span>
+                                <span className="relative z-10 pl-1">{parseFloat(bid[0]).toFixed(2)}</span><span className="relative z-10 pr-1 opacity-90">{vol}</span>
                             </div>)})}
                     </div>
                 </div>
             );
         });
 
-        const ScannerHUD = React.memo(({ data, tf }) => {
+        const ScannerHUD = window.React.memo(({ data, tf }) => {
             const [scanIndex, setScanIndex] = useState(0);
             
             useEffect(() => {
@@ -564,7 +603,7 @@
             );
         });
 
-        const ChartOverlays = ({ chart, series, trades, activeTrade, zoneInfo, isFocusMode, replayTrade, slCountdown }) => {
+        const ChartOverlays = window.React.memo(({ chart, series, trades, activeTrade, zoneInfo, isFocusMode, replayTrade, slCountdown }) => {
             const overlayRef = useRef(null);
             const [hoverPos, setHoverPos] = useState({x: 0, y: 0});
             const [hoveredTrade, setHoveredTrade] = useState(null);
@@ -601,10 +640,12 @@
                                 box.style.top = `${top}px`; box.style.height = `${height}px`;
                                 
                                 if (trade.status === 'CLOSED') {
-                                    if (trade.pnl > 0) {
-                                        box.className = `trade-glass-box absolute rounded z-20 trade-win-box`;
-                                    } else {
+                                    if (trade.result === 'LOSS') {
                                         box.className = `trade-glass-box absolute rounded z-20 trade-loss-box`;
+                                    } else if (trade.result === 'WIN (TRAILED)') {
+                                        box.className = `trade-glass-box absolute rounded z-20 trade-trailed-box`;
+                                    } else {
+                                        box.className = `trade-glass-box absolute rounded z-20 trade-win-box`;
                                     }
                                 } else {
                                     box.className = `trade-glass-box absolute rounded z-20 bg-purple-500/20 border-purple-400/40 border-dashed animate-pulse`;
@@ -705,9 +746,9 @@
                     )}
                 </div>
             );
-        };
+        });
 
-        const BookflowButton = React.memo(() => (
+        const BookflowButton = window.React.memo(() => (
             <a href="https://app.bookflow.sh?ref=3NCYI" target="_blank" rel="noopener noreferrer" className="massive-broker-btn group relative flex items-center justify-center overflow-hidden cursor-pointer no-underline px-6 md:px-10 py-4 z-50 w-[90%] md:w-auto mx-auto mt-4 mb-4 shadow-[0_10px_30px_rgba(147,51,234,0.4)]">
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-[1000ms] ease-in-out skew-x-12"></div>
                 <span className="relative z-10 text-white font-black tracking-widest text-sm md:text-xl oswald-font uppercase drop-shadow-md flex items-center gap-2 md:gap-3 whitespace-nowrap">
@@ -742,6 +783,7 @@
             const [newsData, setNewsData] = useState([]);
             const [currentNews, setCurrentNews] = useState('СИНХРОНИЗАЦИЯ НОВОСТНЫХ ПОТОКОВ...');
             const [chartDataForScanner, setChartDataForScanner] = useState([]);
+            const [orderBook, setOrderBook] = useState(null);
 
             const activeTradeRef = useRef(null);
             const tradesHistoryRef = useRef([]);
@@ -770,9 +812,9 @@
                 dailyStartBalance: INITIAL_BALANCE
             });
 
-            const sevenDayStats = useMemo(() => {
-                const sevenDaysAgo = (Date.now() / 1000) - (7 * 24 * 3600);
-                const recentTrades = tradesHistory.filter(t => t.closeTime >= sevenDaysAgo && t.status === 'CLOSED');
+            const monthlyStats = useMemo(() => {
+                const thirtyDaysAgo = (Date.now() / 1000) - (30 * 24 * 3600);
+                const recentTrades = tradesHistory.filter(t => t.closeTime >= thirtyDaysAgo && t.status === 'CLOSED');
                 
                 let grossProfit = 0, grossLoss = 0;
                 let trailCount = 0, trailGrossR = 0;
@@ -801,29 +843,30 @@
                 const avgWin = winCount > 0 ? grossProfit / winCount : 0;
                 const avgLoss = lossCount > 0 ? grossLoss / lossCount : 0;
                 const avgTrailR = trailCount > 0 ? trailGrossR / trailCount : 0;
+                const avgRR = recentTrades.length > 0 ? (recentTrades.reduce((sum, t) => sum + (t.realizedR || 0), 0) / recentTrades.length) : 0;
 
-                return { count, pnl, winrate, profitFactor, expectancy, avgWin, avgLoss, maxWin, maxLoss, trailCount, avgTrailR };
+                return { count, pnl, winrate, profitFactor, expectancy, avgWin, avgLoss, maxWin, maxLoss, trailCount, avgTrailR, avgRR, grossProfit, grossLoss };
             }, [tradesHistory]);
 
             const recommendation = useMemo(() => {
-                const s = sevenDayStats;
-                if (s.count < 3) return { text: "Сбор данных для анализа...", style: "text-slate-400 border-slate-500/30 bg-slate-900/40", icon: <InfoIcon size={20} className="text-slate-400" /> };
+                const s = monthlyStats;
+                if (s.count < 5) return { text: "Сбор данных для анализа...", style: "text-slate-400 border-slate-500/30 bg-slate-900/40", icon: <InfoIcon size={20} className="text-slate-400" /> };
                 
                 if (s.profitFactor < 1) {
                     if (s.winrate < 40 && s.avgWin > s.avgLoss * 1.5) return { text: "Хороший RR, но низкий винрейт убивает профит. Повысьте требования к Confluence Score.", style: "text-rose-400 border-rose-500/50 bg-rose-900/40", icon: <TrendingDown size={20} /> };
                     return { text: "Отрицательное ожидание. Трейлинг не окупает мелкие убытки. Проанализируйте сделки.", style: "text-rose-400 border-rose-500/50 bg-rose-900/40", icon: <AlertTriangle size={20} /> };
                 }
 
-                if (s.avgTrailR < 0.5 && s.trailCount > 2) {
+                if (s.avgTrailR < 0.5 && s.trailCount > 4) {
                     return { text: "Трейлинг часто возвращает прибыль рынку. Рекомендуется агрессивнее подтягивать стоп по структуре.", style: "text-amber-400 border-amber-500/50 bg-amber-900/40", icon: <InfoIcon size={20} /> };
                 }
 
                 if (s.profitFactor >= 2) {
-                    return { text: "Отличный результат! Алгоритм идеально синхронизирован с рынком. Сохраняйте дисциплину.", style: "text-emerald-400 border-emerald-500/50 bg-emerald-900/40", icon: <TrendingUp size={20} /> };
+                    return { text: "Отличный результат за месяц! Алгоритм идеально синхронизирован с рынком. Сохраняйте дисциплину.", style: "text-emerald-400 border-emerald-500/50 bg-emerald-900/40", icon: <TrendingUp size={20} /> };
                 }
 
                 return { text: "Стабильная торговля с положительным ожиданием. Продолжайте в том же духе.", style: "text-emerald-400 border-emerald-500/50 bg-emerald-900/40", icon: <TrendingUp size={20} /> };
-            }, [sevenDayStats]);
+            }, [monthlyStats]);
 
             const initAudio = () => {
                 const AudioContext = window.AudioContext || window.webkitAudioContext; 
@@ -1008,7 +1051,7 @@
                 if (engineActive.current) return; engineActive.current = true;
                 
                 setAppState('BACKTEST');
-                setAppPhase('БЭКТЕСТ ЗА 7 ДНЕЙ: ТРЕЙЛИНГ И ФИКСАЦИЯ 50%...');
+                setAppPhase('БЭКТЕСТ ЗА 30 ДНЕЙ: ТРЕЙЛИНГ И ФИКСАЦИЯ 50%...');
                 
                 const fetchWithRetry = async (sym, cnt, int) => {
                     while(engineActive.current) {
@@ -1019,9 +1062,14 @@
                     }
                 };
 
-                const data1h = await fetchWithRetry('BTCUSDT', 300, '1h');
-                const data15m = await fetchWithRetry('BTCUSDT', 1000, '15m');
+                const data1h = await fetchWithRetry('BTCUSDT', 750, '1h');
+                const data15m = await fetchWithRetry('BTCUSDT', 3000, '15m');
                 
+                if (!data1h || !data15m) {
+                    showError("Не удалось получить данные с Binance.", "API Fetch", "");
+                    return;
+                }
+
                 await initChart();
                 if (candleSeries.current) {
                     candleSeries.current.setData(data15m);
@@ -1037,11 +1085,11 @@
                 let simBalance = propBalanceRef.current;
                 let simPeak = simBalance;
                 
-                const startIdx = Math.max(50, data15m.length - 672); 
+                const startIdx = Math.max(50, data15m.length - 2880); 
                 let btEngineState = { forcedDirection: null, consecutiveLosses: 0 };
 
                 for (let i = startIdx; i < data15m.length - 2; i++) {
-                    if (i % 20 === 0) await sleep(10);
+                    if (i % 50 === 0) await sleep(10);
 
                     const sig = evaluateSignalEngineHybrid(data15m, i, lMap1H, aMap1H, btEngineState);
                     
@@ -1145,6 +1193,7 @@
                         trade.pnl = pnl; 
                         trade.rPart1 = rPart1;
                         trade.rPart2 = rPart2;
+                        trade.realizedR = pnl / riskAmount;
                         trade.closeTime = closeTime; 
                         trade.closePrice = closePrice;
                         trade.isPartialClosed = isPartialClosed;
@@ -1185,8 +1234,8 @@
                 setAppPhase('СИНХРОНИЗАЦИЯ ГРАФИКА...');
                 for(let trade of histTrades.reverse()) { 
                     if (!engineActive.current) break;
-                    chartInstance.current.timeScale().setVisibleLogicalRange({ from: trade.logicalIndex - 30, to: trade.logicalIndex + 50 });
-                    setReplayTrade(trade); playSound('scan'); await sleep(80);
+                    chartInstance.current.timeScale().setVisibleLogicalRange({ from: trade.logicalIndex - 50, to: trade.logicalIndex + 50 });
+                    setReplayTrade(trade); playSound('scan'); await sleep(50);
                 }
                 setReplayTrade(null);
                 chartInstance.current.timeScale().scrollToRealTime();
@@ -1203,23 +1252,23 @@
                 }
                 
                 setAppState('RESULTS_PAUSE');
-                setAppPhase(`ИСТОРИЯ ЗАГРУЖЕНА. СДЕЛОК ЗА 7 ДНЕЙ: ${histTrades.length}.`);
+                setAppPhase(`ИСТОРИЯ ЗАГРУЖЕНА. СДЕЛОК ЗА 30 ДНЕЙ: ${histTrades.length}.`);
                 
-                enqueueSpeech(`Бэктест за 7 дней завершён. При базовом риске ноль целых семьдесят пять сотых процента вы бы заработали ${Math.round(pnlDollars)} долларов, что составляет ${pnlPercent.toFixed(1)} процента к депозиту. Винрейт составил ${winrate.toFixed(0)} процентов.`, 'bt-stats', 0);
+                enqueueSpeech(`Бэктест за 30 дней завершён. Выполнено ${histTrades.length} сделок. Винрейт составил ${winrate.toFixed(0)} процентов. Итоговая прибыль ${Math.round(pnlDollars)} долларов.`, 'bt-stats', 0);
                 
                 await sleep(9000); 
 
                 if (bestTrade) {
                     setAppState('BEST_TRADE_REVIEW');
-                    setAppPhase('ОБЗОР ЛУЧШЕЙ СДЕЛКИ ПЕРИОДА');
+                    setAppPhase('ОБЗОР ЛУЧШЕЙ СДЕЛКИ МЕСЯЦА');
                     setBestTradeReview(bestTrade);
                     
-                    chartInstance.current.timeScale().setVisibleLogicalRange({ from: bestTrade.logicalIndex - 10, to: bestTrade.logicalIndex + 30 });
+                    chartInstance.current.timeScale().setVisibleLogicalRange({ from: bestTrade.logicalIndex - 15, to: bestTrade.logicalIndex + 45 });
                     
                     const rValue = (bestTrade.pnl / bestTrade.stakeAmount).toFixed(2);
-                    enqueueSpeech(`Обратите внимание на график. Самая прибыльная сделка периода принесла ${rValue} R. Паттерн: ${bestTrade.pattern}.`, 'bt-best', 0);
+                    enqueueSpeech(`Лучшая сделка месяца принесла ${rValue} R. Паттерн: ${bestTrade.pattern}. Обратите внимание на график.`, 'bt-best', 0);
                     
-                    await sleep(8000);
+                    await sleep(10000);
                     setBestTradeReview(null);
                 }
 
@@ -1258,6 +1307,10 @@
                             continue;
                         }
 
+                        // Реальные данные для стакана и метрик
+                        const ob = await ScannerAPIRealTime.getOrderBook('BTCUSDT', 10);
+                        if (ob) setOrderBook(ob);
+
                         const newCandles15m = await ScannerAPI.getCandles('BTCUSDT', 3, '15m');
                         if (!newCandles15m || newCandles15m.length === 0) { await sleep(2000); continue; }
                         
@@ -1268,6 +1321,13 @@
                         currentPrice.current = tick.close;
                         
                         if (candleSeries.current) candleSeries.current.update(tick);
+
+                        // Живые метрики для приборной панели
+                        let avgVolTmp = newCandles15m.reduce((a,b)=>a+b.volume,0) / newCandles15m.length;
+                        let vScore = Math.min(100, Math.round((tick.volume / (avgVolTmp||1)) * 50) || 50);
+                        let sScore = Math.round(50 + ((tick.close - tick.open) / (tick.high - tick.low || 1)) * 40);
+                        let lScore = ob ? Math.min(100, 40 + Math.round(parseFloat(ob.bids[0][1]||0) + parseFloat(ob.asks[0][1]||0))) : 50;
+                        setMetrics({ strength: sScore, vol: vScore, liq: lScore });
 
                         const activeT = activeTradeRef.current;
 
@@ -1477,6 +1537,7 @@
                                 setSlCountdown(null); 
                                 updateBalance(activeT.pnl);
                                 activeT.status = 'CLOSED'; activeT.result = result; activeT.closePrice = curP; activeT.closeTime = Date.now() / 1000;
+                                activeT.realizedR = activeT.pnl / activeT.stakeAmount;
                                 
                                 updateTradeHistory([activeT, ...tradesHistoryRef.current].slice(0, 100)); 
                                 setLiveTrade(null);
@@ -1548,7 +1609,7 @@
                             <h2 className="text-fuchsia-400 tracking-[0.5em] text-xs font-black uppercase mb-3 oswald-font">Developed by Slava Gordeev</h2>
                             <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-fuchsia-200 to-indigo-300 tracking-[0.15em] mb-6 oswald-font drop-shadow-md">UPSCALE.TRADE HYBRID</h1>
                             <p className="text-sm text-slate-300 mb-10 font-medium leading-relaxed bg-black/30 p-4 rounded-xl border border-white/5">
-                                Интеллектуальный контроль сделок. Фиксация 50% прибыли на +1R и автоматический структурный трейлинг. Честный бэктест за 7 дней.
+                                Интеллектуальный контроль сделок. Фиксация 50% прибыли на +1R и автоматический структурный трейлинг. Честный бэктест за 30 дней.
                             </p>
                             
                             <button onClick={handleStart} className="w-full py-5 bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 text-white tracking-[0.3em] font-black rounded-xl transition-all duration-300 shadow-[0_0_30px_rgba(168,85,247,0.5)] uppercase oswald-font hover:shadow-[0_0_50px_rgba(168,85,247,0.8)] border border-white/20">
@@ -1567,8 +1628,8 @@
             const isDDWarning = dailyDD > 1.5;
 
             let recBorder = 'border-emerald-500/50'; let recBg = 'bg-emerald-900/20'; let recText = 'text-emerald-400';
-            if (sevenDayStats.profitFactor < 1) { recBorder = 'border-rose-500/50'; recBg = 'bg-rose-900/20'; recText = 'text-rose-400'; }
-            else if (sevenDayStats.profitFactor < 1.5) { recBorder = 'border-amber-500/50'; recBg = 'bg-amber-900/20'; recText = 'text-amber-400'; }
+            if (monthlyStats.profitFactor < 1) { recBorder = 'border-rose-500/50'; recBg = 'bg-rose-900/20'; recText = 'text-rose-400'; }
+            else if (monthlyStats.profitFactor < 1.5) { recBorder = 'border-amber-500/50'; recBg = 'bg-amber-900/20'; recText = 'text-amber-400'; }
 
             return (
                 <div className="h-[100dvh] w-screen flex flex-col relative overflow-hidden bg-[#030108] text-slate-100 font-sans">
@@ -1630,7 +1691,7 @@
                                         <div className="w-14 h-14 bg-fuchsia-500/20 rounded-full flex items-center justify-center mb-3 border border-fuchsia-400 shadow-[0_0_15px_rgba(217,70,239,0.8)]">
                                             <span className="text-2xl drop-shadow-md">🏆</span>
                                         </div>
-                                        <h2 className="text-2xl font-black text-white tracking-widest oswald-font mb-1 drop-shadow-md">ЛУЧШАЯ СДЕЛКА 7 ДНЕЙ</h2>
+                                        <h2 className="text-2xl font-black text-white tracking-widest oswald-font mb-1 drop-shadow-md">ЛУЧШАЯ СДЕЛКА 30 ДНЕЙ</h2>
                                         <div className="text-xs font-mono text-fuchsia-200 mb-5 tracking-wider bg-black/40 px-3 py-1 rounded-md border border-white/10">{bestTradeReview.pattern}</div>
                                         
                                         <div className="grid grid-cols-2 gap-4 w-full text-left bg-black/40 p-4 rounded-xl border border-white/10 shadow-inner">
@@ -1678,6 +1739,7 @@
                                 <div className="flex bg-black/40 rounded-2xl border border-white/10 divide-x divide-white/10 shadow-inner hidden sm:flex">
                                     <CompactSpeedometer value={metrics.strength} label="STRENGTH" color="#d946ef" />
                                     <CompactSpeedometer value={metrics.vol} label="VOLUME" color="#a855f7" />
+                                    <CompactSpeedometer value={metrics.liq} label="LIQUIDITY" color="#6366f1" />
                                 </div>
                             </div>
 
@@ -1716,8 +1778,9 @@
                         <div className="w-full xl:w-[380px] flex flex-col gap-4 overflow-hidden shrink-0 h-[400px] xl:h-full">
                             
                             <div className="luxury-card p-4 rounded-2xl flex flex-col gap-2 shrink-0 relative overflow-hidden border-indigo-500/30">
+                                <div className="absolute top-0 right-0 p-2 opacity-20"><Activity size={60} /></div>
                                 <h3 className="text-[11px] font-black tracking-[0.15em] uppercase text-indigo-300 border-b border-indigo-500/20 pb-1.5 flex items-center justify-between">
-                                    <span>Управление капиталом & Аналитика</span>
+                                    <span>Аналитика за 30 Дней</span>
                                     {isRecoveryMode && <span className="px-1.5 py-0.5 bg-rose-600/20 text-rose-300 text-[8px] rounded border border-rose-500/30 animate-pulse">RECOVERY</span>}
                                 </h3>
                                 
@@ -1728,21 +1791,21 @@
                                             {currentRiskStr}
                                         </span>
                                     </div>
-                                    <div className="flex justify-between text-slate-400"><span>Сделок:</span> <span className="text-white font-black">{sevenDayStats.count}</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>Винрейт:</span> <span className="text-fuchsia-400 font-black">{sevenDayStats.winrate}%</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>P-Factor:</span> <span className="text-white font-black">{sevenDayStats.profitFactor.toFixed(2)}</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>Expectancy:</span> <span className={`${sevenDayStats.expectancy >= 0 ? "text-emerald-400" : "text-rose-400"} font-black`}>{sevenDayStats.expectancy > 0 ? '+' : ''}{sevenDayStats.expectancy.toFixed(2)}$</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>Avg Win:</span> <span className="text-emerald-400 font-black">+{sevenDayStats.avgWin.toFixed(2)}$</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>Avg Loss:</span> <span className="text-rose-400 font-black">-{sevenDayStats.avgLoss.toFixed(2)}$</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>Max Win:</span> <span className="text-emerald-300 font-black">+{sevenDayStats.maxWin.toFixed(2)}$</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>Max Loss:</span> <span className="text-rose-300 font-black">{sevenDayStats.maxLoss.toFixed(2)}$</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>Trail Count:</span> <span className="text-amber-400 font-black">{sevenDayStats.trailCount}</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>Avg Trail:</span> <span className="text-amber-300 font-black">+{sevenDayStats.avgTrailR.toFixed(2)}R</span></div>
+                                    <div className="flex justify-between text-slate-400"><span>Сделок:</span> <span className="text-white font-black">{monthlyStats.count}</span></div>
+                                    <div className="flex justify-between text-slate-400"><span>Винрейт:</span> <span className="text-fuchsia-400 font-black">{monthlyStats.winrate}%</span></div>
+                                    <div className="flex justify-between text-slate-400"><span>P-Factor:</span> <span className="text-white font-black">{monthlyStats.profitFactor.toFixed(2)}</span></div>
+                                    <div className="flex justify-between text-slate-400"><span>Expectancy:</span> <span className={`${monthlyStats.expectancy >= 0 ? "text-emerald-400" : "text-rose-400"} font-black`}>{monthlyStats.expectancy > 0 ? '+' : ''}{monthlyStats.expectancy.toFixed(2)}$</span></div>
+                                    <div className="flex justify-between text-slate-400"><span>Avg Win:</span> <span className="text-emerald-400 font-black">+{monthlyStats.avgWin.toFixed(2)}$</span></div>
+                                    <div className="flex justify-between text-slate-400"><span>Avg Loss:</span> <span className="text-rose-400 font-black">-{monthlyStats.avgLoss.toFixed(2)}$</span></div>
+                                    <div className="flex justify-between text-slate-400"><span>Max Win:</span> <span className="text-emerald-300 font-black">+{monthlyStats.maxWin.toFixed(2)}$</span></div>
+                                    <div className="flex justify-between text-slate-400"><span>Max Loss:</span> <span className="text-rose-300 font-black">{monthlyStats.maxLoss.toFixed(2)}$</span></div>
+                                    <div className="flex justify-between text-slate-400"><span>Trail Count:</span> <span className="text-amber-400 font-black">{monthlyStats.trailCount}</span></div>
+                                    <div className="flex justify-between text-slate-400"><span>Avg Trail:</span> <span className="text-amber-300 font-black">+{monthlyStats.avgTrailR.toFixed(2)}R</span></div>
                                     
                                     <div className="flex justify-between text-slate-400 col-span-2 border-t border-indigo-500/20 pt-1.5 mt-1">
-                                        <span className="font-bold text-white">7D PnL:</span> 
-                                        <span className={`${sevenDayStats.pnl >= 0 ? "text-emerald-400" : "text-rose-400"} font-black text-sm drop-shadow-[0_0_8px_currentColor]`}>
-                                            {sevenDayStats.pnl > 0 ? '+' : ''}{sevenDayStats.pnl.toFixed(2)}$
+                                        <span className="font-bold text-white">30D PnL:</span> 
+                                        <span className={`${monthlyStats.pnl >= 0 ? "text-emerald-400" : "text-rose-400"} font-black text-sm drop-shadow-[0_0_8px_currentColor]`}>
+                                            {monthlyStats.pnl > 0 ? '+' : ''}{monthlyStats.pnl.toFixed(2)}$
                                         </span>
                                     </div>
                                 </div>
@@ -1830,11 +1893,11 @@
             );
         };
 
-        console.log("Компонент App успешно определен, подготовка к инициализации...");
+        console.log("[System] Компонент App успешно определен, подготовка к инициализации...");
 
         function initReactApp() {
             let attempts = 0;
-            const maxAttempts = 10;
+            const maxAttempts = 15;
 
             const tryInit = () => {
                 attempts++;
@@ -1845,17 +1908,17 @@
                 const rootElement = document.getElementById('root');
 
                 if (!ReactLib || !ReactDOMLib) {
-                    console.warn(`Попытка ${attempts}: React или ReactDOM ещё не загружены`);
+                    console.warn(`[Init] Попытка ${attempts}: React или ReactDOM ещё не загружены`);
                     if (attempts < maxAttempts) {
                         setTimeout(tryInit, 100);
                     } else {
-                        showError("React или ReactDOM не загружены после 10 попыток", "Init", "");
+                        showError("React или ReactDOM не загружены из CDN.", "Init", "");
                     }
                     return;
                 }
 
                 if (!rootElement) {
-                    console.warn(`Попытка ${attempts}: Элемент #root не найден`);
+                    console.warn(`[Init] Попытка ${attempts}: Элемент #root не найден`);
                     if (attempts < maxAttempts) {
                         setTimeout(tryInit, 100);
                     } else {
@@ -1865,13 +1928,13 @@
                 }
 
                 try {
-                    console.log("Запуск ReactDOM.createRoot...");
+                    console.log("[Init] Запуск ReactDOM.createRoot...");
                     const root = ReactDOMLib.createRoot(rootElement);
                     
-                    console.log("Рендер React.createElement(App)...");
+                    console.log("[Init] Рендер ReactLib.createElement(App)...");
                     root.render(ReactLib.createElement(App));
                     
-                    console.log("%c[React] Приложение успешно инициализировано", "color: #22c55e; font-weight: bold;");
+                    console.log("%c[React] Приложение успешно инициализировано", "color: #22c55e; font-weight: bold; font-size: 14px;");
                 } catch (error) {
                     console.error("Ошибка при рендере React:", error);
                     showError("Ошибка рендера React: " + error.message, "React Render", "");
@@ -1881,14 +1944,14 @@
             tryInit();
         }
 
-        // Запуск
-        console.log("Текущее состояние document.readyState:", document.readyState);
+        console.log("[System] Текущее состояние document.readyState:", document.readyState);
         if (document.readyState === 'complete' || document.readyState === 'interactive') {
-            console.log("DOM готов. Вызываем initReactApp с задержкой...");
+            console.log("[System] DOM готов. Вызываем initReactApp с задержкой 80мс...");
             setTimeout(initReactApp, 80);
         } else {
-            console.log("DOM еще загружается. Вешаем слушатель на DOMContentLoaded...");
+            console.log("[System] DOM еще загружается. Вешаем слушатель на DOMContentLoaded...");
             document.addEventListener('DOMContentLoaded', () => {
+                console.log("[System] Событие DOMContentLoaded получено.");
                 setTimeout(initReactApp, 80);
             });
         }
