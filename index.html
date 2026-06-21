@@ -130,17 +130,18 @@
         .trade-loss-box { background: linear-gradient(180deg, rgba(225, 29, 72, 0.15) 0%, rgba(159, 18, 57, 0.05) 100%); border-color: rgba(225, 29, 72, 0.3); border-top-color: rgba(225, 29, 72, 0.6); }
         .trade-trailed-box { background: linear-gradient(180deg, rgba(59, 130, 246, 0.15) 0%, rgba(29, 78, 216, 0.05) 100%); border-color: rgba(59, 130, 246, 0.3); border-top-color: rgba(59, 130, 246, 0.6); }
 
+        /* ОБЪЁМНЫЕ СТЕКЛЯННЫЕ ЗОНЫ */
         .glass-zone {
-            backdrop-filter: blur(12px) saturate(150%);
-            border-radius: 16px;
-            box-shadow: inset 0 0 25px rgba(255,255,255,0.1), 0 10px 40px rgba(0,0,0,0.4);
-            border: 1px solid rgba(255,255,255,0.2);
-            border-top: 1px solid rgba(255,255,255,0.4);
+            backdrop-filter: blur(15px) saturate(200%);
+            border-radius: 12px;
+            box-shadow: inset 0 2px 10px rgba(255,255,255,0.3), inset 0 -2px 10px rgba(0,0,0,0.2), 0 10px 30px rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-top: 1px solid rgba(255,255,255,0.6);
             transition: all 0.3s ease;
         }
-        .glass-zone-tp-long { background: linear-gradient(180deg, rgba(16, 185, 129, 0.25), rgba(16, 185, 129, 0.05)); border-color: rgba(16, 185, 129, 0.4); border-top-color: rgba(16, 185, 129, 0.7); }
-        .glass-zone-tp-short { background: linear-gradient(180deg, rgba(225, 29, 72, 0.25), rgba(225, 29, 72, 0.05)); border-color: rgba(225, 29, 72, 0.4); border-top-color: rgba(225, 29, 72, 0.7); }
-        .glass-zone-sl { background: linear-gradient(180deg, rgba(168, 85, 247, 0.25), rgba(139, 92, 246, 0.05)); border-color: rgba(168, 85, 247, 0.4); border-top-color: rgba(168, 85, 247, 0.7); }
+        .glass-zone-tp-long { background: linear-gradient(180deg, rgba(16, 185, 129, 0.35), rgba(16, 185, 129, 0.1)); border-color: rgba(16, 185, 129, 0.5); border-top-color: rgba(16, 185, 129, 0.8); }
+        .glass-zone-tp-short { background: linear-gradient(180deg, rgba(225, 29, 72, 0.35), rgba(225, 29, 72, 0.1)); border-color: rgba(225, 29, 72, 0.5); border-top-color: rgba(225, 29, 72, 0.8); }
+        .glass-zone-sl { background: linear-gradient(180deg, rgba(168, 85, 247, 0.35), rgba(139, 92, 246, 0.1)); border-color: rgba(168, 85, 247, 0.5); border-top-color: rgba(168, 85, 247, 0.8); }
         .glass-zone-interest-res { background: linear-gradient(90deg, transparent, rgba(225, 29, 72, 0.2) 50%, transparent); border-top: 1px solid rgba(225,29,72,0.6); border-bottom: 1px solid rgba(225,29,72,0.6); box-shadow: 0 0 40px rgba(225,29,72,0.2); }
         .glass-zone-interest-sup { background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.2) 50%, transparent); border-top: 1px solid rgba(16,185,129,0.6); border-bottom: 1px solid rgba(16,185,129,0.6); box-shadow: 0 0 40px rgba(16,185,129,0.2); }
 
@@ -474,12 +475,22 @@
             if (slDistancePercent < 0.002) slPrice = isLong ? entryPrice * 0.998 : entryPrice * 1.002; 
             
             const riskDist = Math.abs(entryPrice - slPrice);
+            
+            // SMART DECISION LOGIC
+            // Если условия средние (score < 85) -> Закрытие на 1.0%
+            // Если условия благоприятные (score >= 85) -> Трейлинг до 2.0%
+            const decision = finalScore >= 85 ? 'TRAIL' : 'FIXED';
+            const targetPercentValue = decision === 'TRAIL' ? 2.0 : 1.0; 
+            const tpDist = entryPrice * (targetPercentValue / 100);
+            const levelTarget = isLong ? entryPrice + tpDist : entryPrice - tpDist;
+            
+            // Уровень для частичной фиксации 50% (оставляем старую логику: +1R)
             const level1R = isLong ? entryPrice + riskDist : entryPrice - riskDist;
 
             return { 
                 valid: true, isLong, isShort, signalType: patternName, score: Math.min(100, finalScore), 
-                signalTime: curr15m.time, entryPrice, slPrice, level1R, R_value: riskDist,
-                tf: '15M', cUpper, cLower, logicalIndex: evalIdx
+                signalTime: curr15m.time, entryPrice, slPrice, level1R, levelTarget, R_value: riskDist,
+                tf: '15M', cUpper, cLower, logicalIndex: evalIdx, targetPercent: targetPercentValue, decision: decision
             };
         }
 
@@ -660,9 +671,7 @@
                                 if (trade.status === 'CLOSED') {
                                     if (trade.result === 'LOSS') {
                                         box.className = `trade-glass-box absolute rounded z-20 trade-loss-box`;
-                                    } else if (trade.result === 'WIN (TRAILED)') {
-                                        box.className = `trade-glass-box absolute rounded z-20 trade-trailed-box`;
-                                    } else {
+                                    } else if (trade.result.includes('WIN')) {
                                         box.className = `trade-glass-box absolute rounded z-20 trade-win-box`;
                                     }
                                 } else {
@@ -678,7 +687,7 @@
                     if (activeTrade && (isFocusMode || activeTrade.status === 'ACTIVE')) {
                         const yEntry = series.priceToCoordinate(activeTrade.entryPrice);
                         const ySL = series.priceToCoordinate(activeTrade.trailingSL || activeTrade.slPrice);
-                        const yTP = activeTrade.level1R ? series.priceToCoordinate(activeTrade.level1R) : null;
+                        const yTP = activeTrade.levelTarget ? series.priceToCoordinate(activeTrade.levelTarget) : null;
                         
                         let xEntry = timeScale.timeToCoordinate(activeTrade.startTime);
                         if (xEntry === null && timeScale.getVisibleLogicalRange()) {
@@ -689,16 +698,12 @@
                             const left = Math.max(0, xEntry);
                             const width = Math.max(150, overlayRef.current.clientWidth - left);
 
-                            if (!activeTrade.isPartialClosed) {
-                                tpZone.style.display = 'flex';
-                                tpZone.style.left = `${left}px`; tpZone.style.width = `${width}px`;
-                                const tpTop = Math.min(yEntry, yTP);
-                                const tpHeight = Math.max(25, Math.abs(yTP - yEntry));
-                                tpZone.style.top = `${tpTop}px`; tpZone.style.height = `${tpHeight}px`;
-                                tpZone.className = `glass-zone absolute z-10 flex justify-center items-center overflow-hidden ${activeTrade.isLong ? 'glass-zone-tp-long' : 'glass-zone-tp-short'}`;
-                            } else {
-                                tpZone.style.display = 'none';
-                            }
+                            tpZone.style.display = 'flex';
+                            tpZone.style.left = `${left}px`; tpZone.style.width = `${width}px`;
+                            const tpTop = Math.min(yEntry, yTP);
+                            const tpHeight = Math.max(25, Math.abs(yTP - yEntry));
+                            tpZone.style.top = `${tpTop}px`; tpZone.style.height = `${tpHeight}px`;
+                            tpZone.className = `glass-zone absolute z-10 flex justify-center items-center overflow-hidden ${activeTrade.isLong ? 'glass-zone-tp-long' : 'glass-zone-tp-short'}`;
 
                             slZone.style.display = 'flex';
                             slZone.style.left = `${left}px`; slZone.style.width = `${width}px`;
@@ -791,10 +796,10 @@
                     </div>
 
                     <div id="active-tp-zone" style={{display: 'none'}}>
-                        {activeTrade && !activeTrade.isPartialClosed && (
+                        {activeTrade && (
                             <div className="text-white/90 font-black text-[10px] tracking-widest drop-shadow-md bg-black/40 px-3 py-1.5 rounded-xl backdrop-blur-md border border-white/20 flex flex-col items-center shadow-[0_5px_15px_rgba(0,0,0,0.5)]">
-                                <span>TAKE PROFIT</span>
-                                <span className="text-[11px] opacity-90 mt-0.5">{activeTrade.level1R?.toFixed(2)}</span>
+                                <span>TAKE PROFIT (+{activeTrade.targetPercent}%)</span>
+                                <span className="text-[11px] opacity-90 mt-0.5">{activeTrade.levelTarget?.toFixed(2)}</span>
                             </div>
                         )}
                     </div>
@@ -928,11 +933,14 @@
                 let trailCount = 0, trailGrossR = 0;
                 let maxWin = 0, maxLoss = 0;
                 let winCount = 0, lossCount = 0;
+                let fixedWins = 0, trailedWins = 0;
 
                 recentTrades.forEach(t => {
                     if (t.pnl > 0) {
                         grossProfit += t.pnl; winCount++;
                         if (t.pnl > maxWin) maxWin = t.pnl;
+                        if (t.result === 'WIN (FIXED)') fixedWins++;
+                        else trailedWins++;
                     } else {
                         grossLoss += Math.abs(t.pnl); lossCount++;
                         if (t.pnl < maxLoss) maxLoss = t.pnl;
@@ -953,7 +961,7 @@
                 const avgTrailR = trailCount > 0 ? trailGrossR / trailCount : 0;
                 const avgRR = recentTrades.length > 0 ? (recentTrades.reduce((sum, t) => sum + (t.realizedR || 0), 0) / recentTrades.length) : 0;
 
-                return { count, pnl, winrate, profitFactor, expectancy, avgWin, avgLoss, maxWin, maxLoss, trailCount, avgTrailR, avgRR, grossProfit, grossLoss };
+                return { count, pnl, winrate, profitFactor, expectancy, avgWin, avgLoss, maxWin, maxLoss, trailCount, avgTrailR, avgRR, grossProfit, grossLoss, fixedWins, trailedWins };
             }, [tradesHistory]);
 
             const recommendation = useMemo(() => {
@@ -1231,10 +1239,10 @@
                         
                         let trade = {
                             id: `hist_${sig.signalTime}`, tf: '15M', isLong: sig.isLong, type: sig.isLong ? 'LONG' : 'SHORT',
-                            entryPrice: sig.entryPrice, slPrice: sig.slPrice, level1R: sig.level1R, R_value: sig.R_value,
+                            entryPrice: sig.entryPrice, slPrice: sig.slPrice, level1R: sig.level1R, levelTarget: sig.levelTarget, R_value: sig.R_value,
                             startTime: sig.signalTime, score: sig.score, pattern: sig.signalType,
                             stakeAmount: riskAmount, logicalIndex: i, 
-                            isPartialClosed: false, trailingSL: sig.slPrice
+                            isPartialClosed: false, trailingSL: sig.slPrice, targetPercent: sig.targetPercent, decision: sig.decision
                         };
                         
                         let pnl = 0; let isPartialClosed = false; let trailingSL = trade.slPrice;
@@ -1256,15 +1264,30 @@
                                     } else {
                                         let p2R = (trailingSL - trade.entryPrice) / trade.R_value;
                                         rPart2 = p2R;
-                                        pnl = (riskAmount/2) + ((riskAmount/2) * p2R); 
+                                        pnl = ((riskAmount/2) * rPart1) + ((riskAmount/2) * p2R); 
                                         result = 'WIN (TRAILED)';
                                     }
                                     break;
                                 }
 
+                                if (c.high >= trade.levelTarget) {
+                                    closePrice = trade.levelTarget;
+                                    closeTime = c.time;
+                                    let finalR = Math.abs(trade.levelTarget - trade.entryPrice) / trade.R_value;
+                                    if (!isPartialClosed) {
+                                        pnl = riskAmount * finalR;
+                                        rPart1 = finalR; rPart2 = finalR;
+                                    } else {
+                                        rPart2 = finalR;
+                                        pnl = ((riskAmount/2) * rPart1) + ((riskAmount/2) * finalR);
+                                    }
+                                    result = trade.decision === 'FIXED' ? 'WIN (FIXED)' : 'WIN (TARGET)';
+                                    break;
+                                }
+
                                 if (!isPartialClosed && c.high >= trade.level1R) {
                                     isPartialClosed = true;
-                                    rPart1 = 1;
+                                    rPart1 = Math.abs(trade.level1R - trade.entryPrice) / trade.R_value;
                                     trailingSL = trade.entryPrice; 
                                 }
 
@@ -1284,15 +1307,30 @@
                                     } else {
                                         let p2R = (trade.entryPrice - trailingSL) / trade.R_value;
                                         rPart2 = p2R;
-                                        pnl = (riskAmount/2) + ((riskAmount/2) * p2R);
+                                        pnl = ((riskAmount/2) * rPart1) + ((riskAmount/2) * p2R);
                                         result = 'WIN (TRAILED)';
                                     }
                                     break;
                                 }
 
+                                if (c.low <= trade.levelTarget) {
+                                    closePrice = trade.levelTarget;
+                                    closeTime = c.time;
+                                    let finalR = Math.abs(trade.entryPrice - trade.levelTarget) / trade.R_value;
+                                    if (!isPartialClosed) {
+                                        pnl = riskAmount * finalR;
+                                        rPart1 = finalR; rPart2 = finalR;
+                                    } else {
+                                        rPart2 = finalR;
+                                        pnl = ((riskAmount/2) * rPart1) + ((riskAmount/2) * finalR);
+                                    }
+                                    result = trade.decision === 'FIXED' ? 'WIN (FIXED)' : 'WIN (TARGET)';
+                                    break;
+                                }
+
                                 if (!isPartialClosed && c.low <= trade.level1R) {
                                     isPartialClosed = true;
-                                    rPart1 = 1;
+                                    rPart1 = Math.abs(trade.entryPrice - trade.level1R) / trade.R_value;
                                     trailingSL = trade.entryPrice;
                                 }
 
@@ -1313,9 +1351,9 @@
                                     rPart1 = finalR; rPart2 = finalR;
                                 } else {
                                     rPart2 = finalR;
-                                    pnl = (riskAmount/2) + (remainingRisk * finalR);
+                                    pnl = ((riskAmount/2) * rPart1) + (remainingRisk * finalR);
                                 }
-                                result = pnl > 0 ? (isPartialClosed ? 'WIN (TRAILED)' : 'WIN') : 'LOSS';
+                                result = pnl > 0 ? (isPartialClosed ? 'WIN (TRAILED)' : 'WIN (FIXED)') : 'LOSS';
                             }
                         }
 
@@ -1547,7 +1585,7 @@
                                     const isRecovery = engineStateRef.current.consecutiveLosses > 0;
                                     const prepMsg = isRecovery ? 
                                         `Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Включен режим контроля убытков.` : 
-                                        `Слияние таймфреймов успешно. Сделка ${liveSignal.isLong?'Лонг':'Шорт'} на 15 минутах.`;
+                                        `Слияние таймфреймов успешно. Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Условия ${liveSignal.decision === 'TRAIL' ? 'благоприятные. Принято решение оставить в трейлинге до двух процентов.' : 'средние. Принято решение закрыть на одном проценте прибыли.'}`;
                                     
                                     enqueueSpeech(prepMsg, 'prep-sig', 0);
 
@@ -1556,10 +1594,11 @@
 
                                     const newTrade = {
                                         id: `trade_${Date.now()}`, tf: liveSignal.tf, isLong: liveSignal.isLong, type: liveSignal.isLong ? 'LONG' : 'SHORT',
-                                        entryPrice: liveSignal.entryPrice, slPrice: liveSignal.slPrice, level1R: liveSignal.level1R, R_value: liveSignal.R_value,
+                                        entryPrice: liveSignal.entryPrice, slPrice: liveSignal.slPrice, level1R: liveSignal.level1R, levelTarget: liveSignal.levelTarget, R_value: liveSignal.R_value,
                                         startTime: Date.now() / 1000, status: 'ACTIVE', score: liveSignal.score, pattern: liveSignal.signalType,
                                         isPartialClosed: false, trailingSL: liveSignal.slPrice,
-                                        warnedTP: false, slTimerStarted: false, stakeAmount: calculatedStake, pnl: 0, rPart1: -1, rPart2: -1
+                                        warnedTPApproach: false, slTimerStarted: false, stakeAmount: calculatedStake, pnl: 0, rPart1: -1, rPart2: -1,
+                                        targetPercent: liveSignal.targetPercent, decision: liveSignal.decision
                                     };
                                     
                                     setLiveTrade(newTrade);
@@ -1568,7 +1607,6 @@
                                     setAppState('ACTIVE_TRADE');
                                     setCurrentTF('15M (ACTIVE TRADE)');
                                     setAppPhase(`АКТИВНА СДЕЛКА: ${newTrade.type} 15M`);
-                                    enqueueSpeech(`Ордер исполнен. Стоп-лосс на графике. Фиксация 50 процентов планируется при +1 R.`, `trade-start-${Date.now()}`, 0);
                                 }
                             }
                         } 
@@ -1579,7 +1617,7 @@
                             if (activeT.isPartialClosed) {
                                 setAppPhase(`В РАБОТЕ: ${activeT.type} 15M (ТРЕЙЛИНГ)`);
                             } else {
-                                setAppPhase(`В РАБОТЕ: ${activeT.type} 15M (ОЖИДАНИЕ 1R)`);
+                                setAppPhase(`В РАБОТЕ: ${activeT.type} 15M (ОЖИДАНИЕ)`);
                             }
 
                             const curP = currentPrice.current;
@@ -1593,6 +1631,12 @@
                                 activeT.slTimerStarted = true;
                                 setSlCountdown(5); 
                                 enqueueSpeech("Опасность ликвидации ордера. Приближаемся к стоп-лоссу.", `warn-sl-${activeT.id}`, 0);
+                            }
+
+                            const tpDistance = Math.abs(activeT.levelTarget - curP) / activeT.entryPrice * 100;
+                            if (tpDistance < 0.15 && !activeT.warnedTPApproach) {
+                                activeT.warnedTPApproach = true;
+                                enqueueSpeech('Внимание, цена подходит к целевой зоне тейк-профита.', `tp-app-${activeT.id}`, 0);
                             }
 
                             if (activeT.isLong) {
@@ -1609,10 +1653,22 @@
                                         result = 'WIN (TRAILED)';
                                     }
                                 }
+                                else if (curP >= activeT.levelTarget) {
+                                    closed = true;
+                                    let finalR = Math.abs(activeT.levelTarget - activeT.entryPrice) / fullRisk;
+                                    if (!activeT.isPartialClosed) {
+                                        activeT.pnl = activeT.stakeAmount * finalR;
+                                        activeT.rPart1 = finalR; activeT.rPart2 = finalR;
+                                    } else {
+                                        activeT.rPart2 = finalR;
+                                        activeT.pnl += (activeT.stakeAmount / 2) * finalR;
+                                    }
+                                    result = activeT.decision === 'FIXED' ? 'WIN (FIXED)' : 'WIN (TARGET)';
+                                }
                                 else if (!activeT.isPartialClosed && curP >= activeT.level1R) {
                                     activeT.isPartialClosed = true;
-                                    activeT.rPart1 = 1;
-                                    activeT.pnl += (activeT.stakeAmount / 2); 
+                                    activeT.rPart1 = Math.abs(activeT.level1R - activeT.entryPrice) / fullRisk;
+                                    activeT.pnl += (activeT.stakeAmount / 2) * activeT.rPart1; 
                                     activeT.trailingSL = activeT.entryPrice; 
                                     setLiveTrade(activeT); drawTradeLines(activeT);
                                     playSound('partial');
@@ -1641,10 +1697,22 @@
                                         result = 'WIN (TRAILED)';
                                     }
                                 }
+                                else if (curP <= activeT.levelTarget) {
+                                    closed = true;
+                                    let finalR = Math.abs(activeT.entryPrice - activeT.levelTarget) / fullRisk;
+                                    if (!activeT.isPartialClosed) {
+                                        activeT.pnl = activeT.stakeAmount * finalR;
+                                        activeT.rPart1 = finalR; activeT.rPart2 = finalR;
+                                    } else {
+                                        activeT.rPart2 = finalR;
+                                        activeT.pnl += (activeT.stakeAmount / 2) * finalR;
+                                    }
+                                    result = activeT.decision === 'FIXED' ? 'WIN (FIXED)' : 'WIN (TARGET)';
+                                }
                                 else if (!activeT.isPartialClosed && curP <= activeT.level1R) {
                                     activeT.isPartialClosed = true;
-                                    activeT.rPart1 = 1;
-                                    activeT.pnl += (activeT.stakeAmount / 2); 
+                                    activeT.rPart1 = Math.abs(activeT.entryPrice - activeT.level1R) / fullRisk;
+                                    activeT.pnl += (activeT.stakeAmount / 2) * activeT.rPart1; 
                                     activeT.trailingSL = activeT.entryPrice; 
                                     setLiveTrade(activeT); drawTradeLines(activeT);
                                     playSound('partial');
@@ -1663,7 +1731,7 @@
                             if (closed) {
                                 setSlCountdown(null); 
                                 
-                                if (result.includes('WIN')) {
+                                if (result.includes('WIN (FIXED)') || result.includes('WIN (TARGET)')) {
                                     enqueueSpeech(`Тейк профит достигнут. Прибыль составила ${activeT.pnl.toFixed(2)} долларов. Запускаю обратный отсчет перед закрытием позиции.`, `tp-announce-${activeT.id}`, 0);
                                     await sleep(6500);
                                     for (let c = 5; c > 0; c--) {
@@ -1676,9 +1744,14 @@
                                     enqueueSpeech('Сделка успешно закрыта.', `win-${Date.now()}`, 0);
                                     engineStateRef.current.consecutiveLosses = 0;
                                     engineStateRef.current.forcedDirection = null;
+                                } else if (result.includes('WIN (TRAILED)')) {
+                                    playSound('win');
+                                    enqueueSpeech('Сделка закрыта по структурному трейлингу.', `trail-${Date.now()}`, 0);
+                                    engineStateRef.current.consecutiveLosses = 0;
+                                    engineStateRef.current.forcedDirection = null;
                                 } else if (result === 'LOSS') {
                                     playSound('loss');
-                                    enqueueSpeech(`Сработал стоп лосс. Позиция принудительно закрыта с небольшим убытком в размере ${Math.abs(activeT.pnl).toFixed(2)} долларов. Не волнуйтесь, это временная просадка. Система продолжает работу.`, `sl-announce-${activeT.id}`, 0);
+                                    enqueueSpeech(`Сработал стоп лосс. Позиция закрыта. Не волнуйтесь, это контролируемый риск, система продолжает анализ.`, `sl-announce-${activeT.id}`, 0);
                                     
                                     engineStateRef.current.consecutiveLosses += 1;
                                     if (engineStateRef.current.consecutiveLosses >= 3) {
@@ -1688,7 +1761,7 @@
                                     } else {
                                         engineStateRef.current.forcedDirection = activeT.isLong ? 'SHORT' : 'LONG';
                                     }
-                                    await sleep(9000);
+                                    await sleep(6000);
                                 }
 
                                 updateBalance(activeT.pnl);
@@ -1922,14 +1995,12 @@
                                     </div>
                                     <div className="flex justify-between text-slate-400"><span>Сделок:</span> <span className="text-white font-black">{monthlyStats.count}</span></div>
                                     <div className="flex justify-between text-slate-400"><span>Винрейт:</span> <span className="text-fuchsia-400 font-black">{monthlyStats.winrate}%</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>P-Factor:</span> <span className="text-white font-black">{monthlyStats.profitFactor.toFixed(2)}</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>Expectancy:</span> <span className={`${monthlyStats.expectancy >= 0 ? "text-emerald-400" : "text-rose-400"} font-black`}>{monthlyStats.expectancy > 0 ? '+' : ''}{monthlyStats.expectancy.toFixed(2)}$</span></div>
+                                    <div className="flex justify-between text-slate-400"><span>По Фиксу:</span> <span className="text-white font-black">{monthlyStats.fixedWins}</span></div>
+                                    <div className="flex justify-between text-slate-400"><span>По Трейлу:</span> <span className="text-white font-black">{monthlyStats.trailedWins}</span></div>
                                     <div className="flex justify-between text-slate-400"><span>Avg Win:</span> <span className="text-emerald-400 font-black">+{monthlyStats.avgWin.toFixed(2)}$</span></div>
                                     <div className="flex justify-between text-slate-400"><span>Avg Loss:</span> <span className="text-rose-400 font-black">-{monthlyStats.avgLoss.toFixed(2)}$</span></div>
                                     <div className="flex justify-between text-slate-400"><span>Max Win:</span> <span className="text-emerald-300 font-black">+{monthlyStats.maxWin.toFixed(2)}$</span></div>
                                     <div className="flex justify-between text-slate-400"><span>Max Loss:</span> <span className="text-rose-300 font-black">{monthlyStats.maxLoss.toFixed(2)}$</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>Trail Count:</span> <span className="text-amber-400 font-black">{monthlyStats.trailCount}</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>Avg Trail:</span> <span className="text-amber-300 font-black">+{monthlyStats.avgTrailR.toFixed(2)}R</span></div>
                                     
                                     <div className="flex justify-between text-slate-400 col-span-2 border-t border-indigo-500/20 pt-1.5 mt-1">
                                         <span className="font-bold text-white">30D PnL:</span> 
@@ -1967,16 +2038,14 @@
                                         </div>
                                         <div className="flex justify-between items-center text-slate-300">
                                             <span>Управление:</span> 
-                                            {activeTrade.isPartialClosed ? 
-                                                <span className="bg-amber-600/30 text-amber-300 px-1.5 py-0.5 rounded font-black border border-amber-500/50">50% В ТРЕЙЛИНГЕ</span>
-                                                : 
-                                                <span className="bg-indigo-600/30 text-indigo-300 px-1.5 py-0.5 rounded font-black border border-indigo-500/50">ОЖИДАНИЕ +1R</span>
-                                            }
+                                            <span className="bg-indigo-600/30 text-indigo-300 px-1.5 py-0.5 rounded font-black border border-indigo-500/50">
+                                                {activeTrade.decision === 'TRAIL' ? `ТРЕЙЛИНГ (ДО +${activeTrade.targetPercent}%)` : `ФИКС (${activeTrade.targetPercent}%)`}
+                                            </span>
                                         </div>
                                         <div className="mt-1 bg-black/30 p-2 rounded border border-white/5 flex flex-col gap-1">
                                             <div className="flex justify-between text-slate-400"><span>Вход:</span> <span className="text-white">{formatPrice(activeTrade.entryPrice)}</span></div>
                                             <div className="flex justify-between text-slate-400"><span>Стоп-Лосс:</span> <span className={activeTrade.isPartialClosed ? 'text-amber-400' : 'text-rose-400'}>{formatPrice(activeTrade.trailingSL)}</span></div>
-                                            {!activeTrade.isPartialClosed && <div className="flex justify-between text-slate-400"><span>Тейк (50%):</span> <span className="text-emerald-400">{formatPrice(activeTrade.level1R)}</span></div>}
+                                            <div className="flex justify-between text-slate-400"><span>Тейк (Цель):</span> <span className="text-emerald-400">{formatPrice(activeTrade.levelTarget)}</span></div>
                                         </div>
                                     </div>
                                 ) : (
@@ -2003,13 +2072,19 @@
                                                     <span className={`text-[9px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded shadow-inner ${t.type === 'LONG' ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-500/20' : 'bg-rose-900/40 text-rose-400 border border-rose-500/20'}`}>{t.type}</span>
                                                     <span className="text-[8px] text-fuchsia-300 font-bold truncate max-w-[100px]" title={t.pattern}>{t.pattern}</span>
                                                 </div>
-                                                <span className={`text-[11px] font-black ${t.pnl > 0 ? 'text-emerald-400' : 'text-rose-500'}`}>{t.pnl > 0 ? '+' : ''}{t.pnl?.toFixed(2)}$</span>
+                                                <div className="flex flex-col items-end">
+                                                    <span className={`text-[11px] font-black ${t.pnl > 0 ? 'text-emerald-400' : 'text-rose-500'}`}>{t.pnl > 0 ? '+' : ''}{t.pnl?.toFixed(2)}$</span>
+                                                    <span className={`text-[9px] font-bold ${t.pnl > 0 ? 'text-emerald-500' : 'text-rose-600'}`}>{t.pnl > 0 ? '+' : ''}{((t.pnl * t.R_value / t.stakeAmount) / t.entryPrice * 100).toFixed(2)}%</span>
+                                                </div>
                                             </div>
                                             <div className="flex justify-between text-[9px] font-mono text-slate-400 group-hover:text-slate-300 transition-colors">
                                                 <span>IN: {formatPrice(t.entryPrice)}</span>
                                                 <div className="flex gap-2">
-                                                    <span className={t.rPart1 > 0 ? "text-emerald-400" : "text-rose-400"}>50%: {t.rPart1 > 0 ? '+1R' : '-1R'}</span>
-                                                    {t.isPartialClosed && <span className={t.rPart2 > 0 ? "text-amber-400" : "text-slate-400"}>TRL: {(t.rPart2 || 0).toFixed(1)}R</span>}
+                                                    {t.result.includes('WIN') ? (
+                                                        t.result.includes('FIXED') ? <span className="text-emerald-400">ФИКС ЗАБРАН</span> : <span className="text-amber-400">ТРЕЙЛИНГ</span>
+                                                    ) : (
+                                                        <span className="text-rose-400">SL</span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
