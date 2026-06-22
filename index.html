@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -114,21 +115,15 @@
         .trade-glass-box {
             backdrop-filter: blur(12px) saturate(150%);
             -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(255,255,255,0.05);
             cursor: pointer;
             pointer-events: auto;
-            transition: all 0.3s ease;
+            transition: filter 0.3s ease, box-shadow 0.3s ease;
         }
         .trade-glass-box:hover { 
             filter: brightness(1.3); 
             z-index: 50 !important;
             box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(255,255,255,0.2);
         }
-        
-        .trade-win-box { background: linear-gradient(180deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.05) 100%); border-color: rgba(16, 185, 129, 0.3); border-top-color: rgba(16, 185, 129, 0.6); }
-        .trade-loss-box { background: linear-gradient(180deg, rgba(225, 29, 72, 0.15) 0%, rgba(159, 18, 57, 0.05) 100%); border-color: rgba(225, 29, 72, 0.3); border-top-color: rgba(225, 29, 72, 0.6); }
-        .trade-trailed-box { background: linear-gradient(180deg, rgba(59, 130, 246, 0.15) 0%, rgba(29, 78, 216, 0.05) 100%); border-color: rgba(59, 130, 246, 0.3); border-top-color: rgba(59, 130, 246, 0.6); }
 
         /* ТОНКИЕ МЕРЦАЮЩИЕ СТЕКЛЯННЫЕ ЗОНЫ */
         .glass-zone {
@@ -646,7 +641,8 @@
             );
         });
 
-        const ChartOverlays = window.React.memo(({ chart, series, trades, activeTrade, zoneInfo, isFocusMode, replayTrade, slCountdown }) => {
+        // ОБНОВЛЕННЫЙ КОМПОНЕНТ ОТРИСОВКИ БОКСОВ СДЕЛОК
+        const ChartOverlays = window.React.memo(({ chart, series, trades, activeTrade, zoneInfo, isFocusMode, replayTrade, slCountdown, currentPriceRef }) => {
             const overlayRef = useRef(null);
             const [hoverPos, setHoverPos] = useState({x: 0, y: 0});
             const [hoveredTrade, setHoveredTrade] = useState(null);
@@ -659,42 +655,68 @@
                 const loop = () => {
                     if (!isActive || !overlayRef.current) return;
                     const allTrades = replayTrade ? [...trades, replayTrade] : trades;
+                    const curP = currentPriceRef?.current;
                     
                     const tradeBoxes = overlayRef.current.querySelectorAll('.trade-glass-box');
                     tradeBoxes.forEach((box, i) => {
                         const trade = allTrades[i];
                         if (!trade) { box.style.display = 'none'; return; }
 
+                        const isTradeActive = trade.status === 'ACTIVE';
+                        const priceToUse = isTradeActive ? (curP || trade.entryPrice) : (trade.closePrice || trade.entryPrice);
+
                         let xEntry = timeScale.timeToCoordinate(trade.startTime);
-                        let xExit = timeScale.timeToCoordinate(trade.closeTime || (Date.now()/1000));
+                        let xExit = timeScale.timeToCoordinate(isTradeActive ? (Date.now()/1000) : (trade.closeTime || (Date.now()/1000)));
 
                         if (xEntry !== null && xExit !== null) {
-                            box.style.display = 'block';
-                            const left = Math.min(xEntry, xExit);
-                            const width = Math.max(Math.abs(xExit - xEntry), 15); 
-                            
                             const yEntry = series.priceToCoordinate(trade.entryPrice);
-                            const yClose = series.priceToCoordinate(trade.closePrice || trade.entryPrice);
+                            const yClose = series.priceToCoordinate(priceToUse);
                             
                             if (yEntry !== null && yClose !== null) {
-                                const top = Math.min(yEntry, yClose); 
-                                const height = Math.max(20, Math.abs(yClose - yEntry));
-                                box.style.left = `${left}px`; box.style.width = `${width}px`;
-                                box.style.top = `${top}px`; box.style.height = `${height}px`;
+                                box.style.display = 'flex'; // Отображаем бокс
                                 
-                                if (trade.status === 'CLOSED') {
-                                    if (trade.result === 'LOSS') {
-                                        box.className = `trade-glass-box absolute rounded z-20 trade-loss-box`;
-                                    } else if (trade.result.includes('WIN')) {
-                                        box.className = `trade-glass-box absolute rounded z-20 trade-win-box`;
+                                let left = Math.min(xEntry, xExit);
+                                let width = Math.max(Math.abs(xExit - xEntry), 40); // Ширина для читаемости текста
+                                
+                                let yMin = Math.min(yEntry, yClose);
+                                let yMax = Math.max(yEntry, yClose);
+                                let height = yMax - yMin;
+                                let top = yMin;
+                                
+                                // Гарантируем минимальную высоту для текста
+                                if (height < 36) {
+                                    top -= (36 - height) / 2;
+                                    height = 36;
+                                }
+                                
+                                box.style.left = `${left}px`; 
+                                box.style.width = `${width}px`;
+                                box.style.top = `${top}px`; 
+                                box.style.height = `${height}px`;
+                                
+                                // Позиционирование точек входа и выхода внутри бокса
+                                const entryDot = box.querySelector('.entry-dot');
+                                const exitDot = box.querySelector('.exit-dot');
+                                
+                                if (entryDot && exitDot) {
+                                    entryDot.style.top = `${yEntry - top}px`;
+                                    exitDot.style.top = `${yClose - top}px`;
+                                    
+                                    entryDot.className = `entry-dot absolute w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] -ml-1 -mt-1 left-0 z-30 ${trade.isLong ? 'bg-emerald-400 text-emerald-400' : 'bg-rose-500 text-rose-500'}`;
+                                    
+                                    if (!isTradeActive) {
+                                         exitDot.style.display = 'block';
+                                         exitDot.className = `exit-dot absolute w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] -mr-1 -mt-1 right-0 z-30 ${trade.pnl > 0 ? 'bg-emerald-400 text-emerald-400' : 'bg-rose-500 text-rose-500'}`;
+                                    } else {
+                                         exitDot.style.display = 'block'; 
+                                         exitDot.className = `exit-dot absolute w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] -mr-1 -mt-1 right-0 z-30 bg-purple-400 text-purple-400 animate-ping`;
                                     }
-                                } else {
-                                    box.className = `trade-glass-box absolute rounded z-20 bg-purple-500/20 border-purple-400/40 border-dashed animate-pulse`;
                                 }
                             }
                         } else { box.style.display = 'none'; }
                     });
 
+                    // TP / SL Зоны для активной сделки
                     const tpZone = overlayRef.current.querySelector('#active-tp-zone');
                     const slZone = overlayRef.current.querySelector('#active-sl-zone');
                     
@@ -736,6 +758,7 @@
                         if(slZone) slZone.style.display = 'none';
                     }
 
+                    // Зоны интереса
                     const interestZoneBox = overlayRef.current.querySelector('#interest-zone-box');
                     const interestZoneText = overlayRef.current.querySelector('#interest-zone-text');
                     
@@ -777,31 +800,63 @@
 
                 rafId = requestAnimationFrame(loop);
                 return () => { isActive = false; cancelAnimationFrame(rafId); };
-            }, [chart, series, trades, activeTrade, zoneInfo, isFocusMode, replayTrade]);
+            }, [chart, series, trades, activeTrade, zoneInfo, isFocusMode, replayTrade, currentPriceRef]);
 
             const allTradesToRender = replayTrade ? [...trades, replayTrade] : trades;
 
             return (
                 <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden" ref={overlayRef}>
                     
-                    {allTradesToRender.map((trade, i) => (
-                        <div 
-                            key={trade.id || i}
-                            className="trade-glass-box absolute rounded z-20"
-                            style={{ display: 'none' }}
-                            onMouseEnter={(e) => {
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                const containerRect = overlayRef.current.getBoundingClientRect();
-                                setHoverPos({ x: rect.left - containerRect.left + rect.width / 2, y: rect.top - containerRect.top });
-                                setHoveredTrade(trade);
-                            }}
-                            onMouseLeave={() => setHoveredTrade(null)}
-                        >
-                            <div className="absolute -top-5 left-1 text-[9px] font-black text-white drop-shadow-md pointer-events-none bg-black/50 px-1 rounded border border-white/10">
-                                {trade.status === 'CLOSED' ? (trade.pnl > 0 ? '✓' : '✗') : 'ACT'}
+                    {allTradesToRender.map((trade, i) => {
+                        const isWin = trade.pnl > 0 || trade.result?.includes('WIN');
+                        const isLoss = trade.result === 'LOSS';
+                        const isActive = trade.status === 'ACTIVE';
+                        // Считаем ценовой процент хода актива от точки входа
+                        const pricePercent = trade.closePrice ? (Math.abs(trade.closePrice - trade.entryPrice) / trade.entryPrice * 100).toFixed(2) : '0.00';
+
+                        return (
+                            <div 
+                                key={trade.id || i}
+                                className={`trade-glass-box absolute rounded z-20 overflow-visible transition-colors duration-300 ${
+                                    isActive ? 'bg-purple-500/20 border-purple-400/50 border-dashed animate-pulse' :
+                                    isWin ? 'bg-gradient-to-b from-emerald-900/40 to-emerald-800/20 border border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 
+                                    'bg-gradient-to-b from-rose-950/70 to-rose-900/40 border border-rose-700/80 shadow-[0_0_15px_rgba(225,29,72,0.3)]'
+                                }`}
+                                style={{ display: 'none' }}
+                                onMouseEnter={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    const containerRect = overlayRef.current.getBoundingClientRect();
+                                    setHoverPos({ x: rect.left - containerRect.left + rect.width / 2, y: rect.top - containerRect.top });
+                                    setHoveredTrade(trade);
+                                }}
+                                onMouseLeave={() => setHoveredTrade(null)}
+                            >
+                                {/* Точки входа и выхода обновляются через requestAnimationFrame */}
+                                <div className="entry-dot absolute w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] -ml-1 -mt-1 left-0 z-30"></div>
+                                <div className="exit-dot absolute w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] -mr-1 -mt-1 right-0 z-30"></div>
+                                
+                                {/* Внутреннее содержимое бокса */}
+                                <div className="absolute inset-0 rounded flex flex-col items-center justify-center p-1 pointer-events-none z-10 opacity-100 overflow-hidden">
+                                    <span className={`text-[8px] sm:text-[9px] font-black uppercase tracking-widest leading-none mb-0.5 drop-shadow-md ${trade.isLong ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                        {trade.isLong ? 'LONG' : 'SHORT'}
+                                    </span>
+                                    
+                                    {!isActive && (
+                                        <div className={`flex items-center gap-1 bg-black/60 px-1.5 py-0.5 rounded backdrop-blur-sm border ${isWin ? 'border-emerald-500/20' : 'border-rose-500/20'}`}>
+                                            {isWin ? (
+                                                <span className="text-emerald-400 text-[10px] font-black leading-none drop-shadow-md">✓</span>
+                                            ) : (
+                                                <span className="text-rose-500 text-[9px] font-black uppercase leading-none drop-shadow-md">SL</span>
+                                            )}
+                                            <div className="flex items-center text-[9px] font-mono font-bold text-white leading-none whitespace-nowrap">
+                                                {trade.isLong ? (isWin ? '↗' : '↘') : (isWin ? '↘' : '↗')} {pricePercent}%
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                     
                     <div className={`zone-capsule ${zoneInfo?.type === 'RESISTANCE' ? 'zone-capsule-res' : 'zone-capsule-sup'}`}>
                         {zoneInfo && isFocusMode && (
@@ -1127,23 +1182,20 @@
                 return () => clearInterval(rotInt); 
             }, [isStarted, newsData]);
 
-            // Голосовое чтение новостей раз в 15 минут
             useEffect(() => {
                 if (!isStarted || newsData.length === 0) return;
                 
                 const tryReadNews = () => {
-                    // Читаем новость только если очередь пуста и нет активного спича
                     if (speechQueueRef.current.length === 0 && !isSpeakingRef.current) {
                         const randomNewsIndex = Math.floor(Math.random() * newsData.length);
                         const newsText = newsData[randomNewsIndex];
                         enqueueSpeech(`Фоновая сводка новостей. ${newsText}`, `news-update`, 0);
                     } else {
-                        // Отложить попытку на 30 секунд
                         setTimeout(tryReadNews, 30000);
                     }
                 };
 
-                const newsReaderInterval = setInterval(tryReadNews, 15 * 60 * 1000); // 15 минут
+                const newsReaderInterval = setInterval(tryReadNews, 15 * 60 * 1000); 
                 return () => clearInterval(newsReaderInterval);
             }, [isStarted, newsData, enqueueSpeech]);
 
@@ -1438,8 +1490,11 @@
                 
                 const pnlDollars = simBalance - INITIAL_BALANCE;
                 const wins = histTrades.filter(t => t.pnl > 0).length;
+                const losses = histTrades.filter(t => t.pnl <= 0).length;
+                const totalTrades = histTrades.length;
                 
-                enqueueSpeech(`Завершен анализ за 30 дней. При фиксированном риске ноль целых семьдесят пять сотых процента на сделку, ваша итоговая прибыль составила бы ${Math.round(pnlDollars)} долларов.`, 'bt-stats', 0);
+                // ОБНОВЛЕННОЕ ОЗВУЧИВАНИЕ РЕЗУЛЬТАТОВ
+                enqueueSpeech(`Завершен анализ за 30 дней. Всего совершено ${totalTrades} сделок. Успешных сделок: ${wins}. Убыточных сделок и закрытий по стоп-лоссу: ${losses}. Общий результат составил ${pnlDollars > 0 ? 'плюс' : 'минус'} ${Math.abs(Math.round(pnlDollars))} долларов.`, 'bt-stats', 0);
                 
                 const winningTrades = histTrades.filter(t => t.pnl > 0);
                 if (winningTrades.length > 0) {
@@ -2028,10 +2083,15 @@
                                 <div ref={chartContainerRef} className="absolute inset-0 w-full h-full z-10" style={{ opacity: appState === 'SCANNING' ? 0.05 : 1 }} />
                                 
                                 <ChartOverlays 
-                                    chart={chartInstance.current} series={candleSeries.current} 
-                                    trades={tradesHistory} activeTrade={activeTrade} zoneInfo={zoneInfo} 
+                                    chart={chartInstance.current} 
+                                    series={candleSeries.current} 
+                                    trades={tradesHistory} 
+                                    activeTrade={activeTrade} 
+                                    zoneInfo={zoneInfo} 
                                     isFocusMode={appState === 'ZONE_DETECTED' || appState === 'PREPARING'} 
-                                    replayTrade={replayTrade} slCountdown={slCountdown}
+                                    replayTrade={replayTrade} 
+                                    slCountdown={slCountdown}
+                                    currentPriceRef={currentPrice}
                                 />
                             </div>
 
@@ -2195,3 +2255,6 @@
     </script>
 </body>
 </html>
+
+
+```
