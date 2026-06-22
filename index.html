@@ -225,7 +225,6 @@
         window.addEventListener('error', (e) => showError(e.message, e.filename, e.lineno));
         window.addEventListener('unhandledrejection', (e) => showError(e.reason?.message || e.reason, 'Promise', ''));
 
-        // Блокируем подгрузку модулей
         window.exports = {};
         window.module = { exports: window.exports };
         window.require = function(moduleName) {
@@ -247,7 +246,6 @@
         const React = window.React || {};
         const ReactDOM = window.ReactDOM || {};
         
-        // Ленивая инициализация хуков 
         const useState = (...args) => window.React.useState(...args);
         const useEffect = (...args) => window.React.useEffect(...args);
         const useRef = (...args) => window.React.useRef(...args);
@@ -261,7 +259,6 @@
         };
         suppressResizeObserverErrors();
 
-        // Icons
         const Shield = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 4.81 17 6 19 6a1 1 0 0 1 1 1z"/></svg>);
         const Cpu = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>);
         const Activity = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>);
@@ -290,6 +287,7 @@
         const RISK_TIERS = [0.0075, 0.005, 0.0025]; 
         const MAIN_TIMEFRAME = 'HYBRID 1H/15M (30D)';
         const MAX_DAILY_DD = 0.025; 
+        const MIN_QUALITY_PROFIT = 0.75; // Жесткий порог качества (в процентах)
 
         const fetchWithTimeout = async (url, options = {}) => {
             const { timeout = 4000 } = options;
@@ -481,7 +479,7 @@
             
             const slDistancePercent = Math.abs(entryPrice - rawSlPrice) / entryPrice * 100;
             
-            // Если стоп-лосс слишком далеко, то для профита >= 0.9% потребуется плохой RR. Отсеиваем слишком широкие входы.
+            // Если стоп-лосс слишком далеко, то для профита >= 0.75% потребуется плохой RR. Отсеиваем слишком широкие входы.
             if (slDistancePercent > 1.3) return { valid: false, score: 0 }; 
             
             let slPrice = rawSlPrice;
@@ -489,13 +487,12 @@
             
             const riskDist = Math.abs(entryPrice - slPrice);
             
-            // НОВАЯ ЛОГИКА: МИНИМАЛЬНЫЙ ПРОФИТ ОТ 0.9% ДО 1.5% ГАРАНТИРУЕТСЯ БАЗОВЫМ ТЕЙКОМ
+            // НОВАЯ ЛОГИКА: МИНИМАЛЬНЫЙ ПРОФИТ ОТ 1.0% ДО 1.3% ДЛЯ ГАРАНТИИ КАЧЕСТВА
             const decision = finalScore >= 85 ? 'TRAIL' : 'FIXED';
-            const targetPercentValue = decision === 'TRAIL' ? 1.5 : 1.0; 
+            const targetPercentValue = decision === 'TRAIL' ? 1.3 : 1.0; 
             const tpDist = entryPrice * (targetPercentValue / 100);
             const levelTarget = isLong ? entryPrice + tpDist : entryPrice - tpDist;
             
-            // Уровень для частичной фиксации 50% (+1R)
             const level1R = isLong ? entryPrice + riskDist : entryPrice - riskDist;
 
             return { 
@@ -547,45 +544,6 @@
                     {pixels.map((color, i) => (
                         <div key={i} className={`w-1.5 h-1.5 rounded-sm pixel-pulse ${color} bg-current`} style={{animationDelay: `${i*0.1}s`}}></div>
                     ))}
-                </div>
-            );
-        });
-
-        const OrderBookDepth = window.React.memo(({ price, orderBook }) => {
-            const p = price || 0;
-            if (!p || !orderBook) return <div className="text-xs text-slate-500 font-bold p-2 text-center h-full flex items-center justify-center">СИНХРОНИЗАЦИЯ ДОМ...</div>;
-            
-            const asks = orderBook.asks.slice(0, 4).reverse();
-            const bids = orderBook.bids.slice(0, 4);
-            const formattedP = formatPrice(p);
-            
-            return (
-                <div className="flex flex-col mono-font text-slate-100 px-3 justify-center h-full w-full relative bg-[rgba(10,5,20,0.5)] rounded-xl overflow-hidden">
-                    <div className="flex justify-between text-slate-400 mb-2 border-b border-purple-500/20 pb-1.5 text-[10px] tracking-widest font-bold uppercase z-10"><span>ASK (Sell)</span><span>Vol</span></div>
-                    <div className="space-y-1 mt-1 relative z-10">
-                        {asks.map((ask, i) => {
-                            const vol = parseFloat(ask[1]).toFixed(3);
-                            const width = `${Math.min(100, (vol / 5) * 100)}%`;
-                            return (
-                            <div key={`ask-${i}`} className="flex justify-between text-[11px] text-rose-300 font-bold tracking-wider relative transition-all duration-300 group hover:text-rose-100">
-                                <div className="absolute right-0 top-0 bottom-0 bg-gradient-to-l from-rose-600/30 to-transparent rounded-sm transition-all duration-500" style={{width}}></div>
-                                <span className="relative z-10 pl-1">{parseFloat(ask[0]).toFixed(2)}</span><span className="relative z-10 pr-1 opacity-90">{vol}</span>
-                            </div>)})}
-                        
-                        <div className="flex justify-between text-white bg-gradient-to-r from-purple-900/60 to-fuchsia-900/60 border border-purple-500/40 my-2 py-1 px-2 text-sm font-black shadow-[0_0_15px_rgba(168,85,247,0.3)] rounded relative overflow-hidden">
-                            <div className="absolute inset-0 bg-[rgba(255,255,255,0.05)] animate-pulse"></div>
-                            <span className="relative z-10">{formattedP}</span><span className="relative z-10 text-purple-200">REAL</span>
-                        </div>
-                        
-                        {bids.map((bid, i) => {
-                            const vol = parseFloat(bid[1]).toFixed(3); 
-                            const width = `${Math.min(100, (vol / 5) * 100)}%`;
-                            return (
-                            <div key={`bid-${i}`} className="flex justify-between text-[11px] text-emerald-300 font-bold tracking-wider relative transition-all duration-300 group hover:text-emerald-100">
-                                <div className="absolute right-0 top-0 bottom-0 bg-gradient-to-l from-emerald-600/30 to-transparent rounded-sm transition-all duration-500" style={{width}}></div>
-                                <span className="relative z-10 pl-1">{parseFloat(bid[0]).toFixed(2)}</span><span className="relative z-10 pr-1 opacity-90">{vol}</span>
-                            </div>)})}
-                    </div>
                 </div>
             );
         });
@@ -643,8 +601,8 @@
             );
         });
 
-        // КОМПОНЕНТ ОТРИСОВКИ БОКСОВ СДЕЛОК (СКРЫТИЕ МЕЛКИХ СДЕЛОК)
-        const ChartOverlays = window.React.memo(({ chart, series, trades, activeTrade, zoneInfo, isFocusMode, replayTrade, slCountdown, currentPriceRef }) => {
+        // КОМПОНЕНТ ОТРИСОВКИ БОКСОВ СДЕЛОК И ПАУЗ
+        const ChartOverlays = window.React.memo(({ chart, series, trades, activeTrade, zoneInfo, isFocusMode, replayTrade, slCountdown, currentPriceRef, pauses }) => {
             const overlayRef = useRef(null);
             const [hoverPos, setHoverPos] = useState({x: 0, y: 0});
             const [hoveredTrade, setHoveredTrade] = useState(null);
@@ -665,14 +623,12 @@
                         if (!trade) { box.style.display = 'none'; return; }
 
                         const isTradeActive = trade.status === 'ACTIVE';
-                        // ЖЕСТКИЙ ФИЛЬТР: если закрыта и мелкая - скрываем навсегда
+                        // ЖЕСТКИЙ ФИЛЬТР: мелкие сделки не рендерятся вообще (они не передаются сюда из массива, но на всякий случай)
                         if (!isTradeActive && trade.isSmallWin) {
-                            box.style.display = 'none';
-                            return;
+                            box.style.display = 'none'; return;
                         }
 
                         const priceToUse = isTradeActive ? (curP || trade.entryPrice) : (trade.closePrice || trade.entryPrice);
-
                         let xEntry = timeScale.timeToCoordinate(trade.startTime);
                         let xExit = timeScale.timeToCoordinate(isTradeActive ? (Date.now()/1000) : (trade.closeTime || (Date.now()/1000)));
 
@@ -685,21 +641,15 @@
                                 
                                 let left = Math.min(xEntry, xExit);
                                 let width = Math.max(Math.abs(xExit - xEntry), 40); 
-                                
                                 let yMin = Math.min(yEntry, yClose);
                                 let yMax = Math.max(yEntry, yClose);
                                 let height = yMax - yMin;
                                 let top = yMin;
                                 
-                                if (height < 36) {
-                                    top -= (36 - height) / 2;
-                                    height = 36;
-                                }
+                                if (height < 36) { top -= (36 - height) / 2; height = 36; }
                                 
-                                box.style.left = `${left}px`; 
-                                box.style.width = `${width}px`;
-                                box.style.top = `${top}px`; 
-                                box.style.height = `${height}px`;
+                                box.style.left = `${left}px`; box.style.width = `${width}px`;
+                                box.style.top = `${top}px`; box.style.height = `${height}px`;
                                 
                                 const entryDot = box.querySelector('.entry-dot');
                                 const exitDot = box.querySelector('.exit-dot');
@@ -707,7 +657,6 @@
                                 if (entryDot && exitDot) {
                                     entryDot.style.top = `${yEntry - top}px`;
                                     exitDot.style.top = `${yClose - top}px`;
-                                    
                                     entryDot.className = `entry-dot absolute w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] -ml-1 -mt-1 left-0 z-30 ${trade.isLong ? 'bg-emerald-400 text-emerald-400' : 'bg-rose-500 text-rose-500'}`;
                                     
                                     if (!isTradeActive) {
@@ -723,6 +672,24 @@
                         } else { box.style.display = 'none'; }
                     });
 
+                    // Рендер зон пауз безопасности
+                    const pauseBoxes = overlayRef.current.querySelectorAll('.pause-glass-box');
+                    pauseBoxes.forEach((box, i) => {
+                        const p = pauses[i];
+                        if (!p) { box.style.display = 'none'; return; }
+                        let xStart = timeScale.timeToCoordinate(p.startTime);
+                        let xEnd = timeScale.timeToCoordinate(p.endTime);
+                        if (xStart !== null && xEnd !== null) {
+                            box.style.display = 'flex';
+                            let left = Math.min(xStart, xEnd);
+                            let width = Math.max(Math.abs(xEnd - xStart), 60); 
+                            box.style.left = `${left}px`;
+                            box.style.width = `${width}px`;
+                            box.style.top = '0px';
+                            box.style.height = '100%';
+                        } else { box.style.display = 'none'; }
+                    });
+
                     // TP / SL Зоны
                     const tpZone = overlayRef.current.querySelector('#active-tp-zone');
                     const slZone = overlayRef.current.querySelector('#active-sl-zone');
@@ -731,7 +698,6 @@
                         const yEntry = series.priceToCoordinate(activeTrade.entryPrice);
                         const ySL = series.priceToCoordinate(activeTrade.trailingSL || activeTrade.slPrice);
                         const yTP = activeTrade.levelTarget ? series.priceToCoordinate(activeTrade.levelTarget) : null;
-                        
                         let xEntry = timeScale.timeToCoordinate(activeTrade.startTime);
                         if (xEntry === null && timeScale.getVisibleLogicalRange()) xEntry = overlayRef.current.clientWidth / 2;
                         
@@ -740,19 +706,13 @@
                             const width = Math.max(150, overlayRef.current.clientWidth - left);
 
                             if (!activeTrade.isPartialClosed) {
-                                tpZone.style.display = 'flex';
-                                tpZone.style.left = `${left}px`; tpZone.style.width = `${width}px`;
-                                const tpHeight = 28;
-                                tpZone.style.top = `${yTP - tpHeight/2}px`; tpZone.style.height = `${tpHeight}px`;
+                                tpZone.style.display = 'flex'; tpZone.style.left = `${left}px`; tpZone.style.width = `${width}px`;
+                                tpZone.style.top = `${yTP - 14}px`; tpZone.style.height = `28px`;
                                 tpZone.className = `glass-zone gentle-pulse-anim absolute z-[5] flex justify-center items-center overflow-hidden ${activeTrade.isLong ? 'glass-zone-tp-long' : 'glass-zone-tp-short'}`;
-                            } else {
-                                tpZone.style.display = 'none';
-                            }
+                            } else { tpZone.style.display = 'none'; }
 
-                            slZone.style.display = 'flex';
-                            slZone.style.left = `${left}px`; slZone.style.width = `${width}px`;
-                            const slHeight = 28;
-                            slZone.style.top = `${ySL - slHeight/2}px`; slZone.style.height = `${slHeight}px`;
+                            slZone.style.display = 'flex'; slZone.style.left = `${left}px`; slZone.style.width = `${width}px`;
+                            slZone.style.top = `${ySL - 14}px`; slZone.style.height = `28px`;
                             slZone.className = `glass-zone gentle-pulse-anim glass-zone-sl absolute z-[5] flex justify-center items-center overflow-hidden`;
                         } else {
                             if(tpZone) tpZone.style.display = 'none'; if(slZone) slZone.style.display = 'none';
@@ -763,12 +723,9 @@
 
                     // Зоны интереса
                     const interestZoneBox = overlayRef.current.querySelector('#interest-zone-box');
-                    const interestZoneText = overlayRef.current.querySelector('#interest-zone-text');
-                    
                     if (zoneInfo && isFocusMode && interestZoneBox) {
                         const zTop = series.priceToCoordinate(zoneInfo.top);
                         const zBot = series.priceToCoordinate(zoneInfo.bottom);
-                        
                         if (zTop !== null && zBot !== null) {
                             interestZoneBox.style.display = 'block';
                             const top = Math.min(zTop, zBot);
@@ -776,36 +733,27 @@
                             interestZoneBox.style.top = `${top}px`;
                             interestZoneBox.style.height = `${height}px`;
                             interestZoneBox.className = `absolute z-[5] pointer-events-none w-full left-0 backdrop-blur-[4px] transition-all duration-500 ${zoneInfo.type === 'RESISTANCE' ? 'glass-zone-interest-res' : 'glass-zone-interest-sup'}`;
-                            interestZoneText.innerHTML = `ОЖИДАЕТСЯ ${zoneInfo.type === 'RESISTANCE' ? 'SHORT' : 'LONG'} СИГНАЛ <span class="ml-2 text-[10px] opacity-70 font-mono">${zoneInfo.bottom.toFixed(2)} - ${zoneInfo.top.toFixed(2)}</span>`;
                         } else { interestZoneBox.style.display = 'none'; }
                     } else if (interestZoneBox) { interestZoneBox.style.display = 'none'; }
-
-                    const capsule = overlayRef.current.querySelector('.zone-capsule');
-                    if (capsule && zoneInfo && isFocusMode) {
-                        const zX = timeScale.timeToCoordinate(zoneInfo.time);
-                        const zTop = series.priceToCoordinate(zoneInfo.top);
-                        const zBot = series.priceToCoordinate(zoneInfo.bottom);
-                        
-                        if (zX !== null && zTop !== null && zBot !== null) {
-                            capsule.classList.add('active');
-                            const minY = Math.min(zTop, zBot); const maxY = Math.max(zTop, zBot);
-                            capsule.style.top = `${minY - 30}px`; capsule.style.height = `${maxY - minY + 60}px`;
-                            capsule.style.left = `${zX - 80}px`; capsule.style.width = `160px`;
-                        } else { capsule.classList.remove('active'); }
-                    } else if (capsule) { capsule.classList.remove('active'); }
 
                     rafId = requestAnimationFrame(loop);
                 };
 
                 rafId = requestAnimationFrame(loop);
                 return () => { isActive = false; cancelAnimationFrame(rafId); };
-            }, [chart, series, trades, activeTrade, zoneInfo, isFocusMode, replayTrade, currentPriceRef]);
+            }, [chart, series, trades, activeTrade, zoneInfo, isFocusMode, replayTrade, currentPriceRef, pauses]);
 
             const allTradesToRender = replayTrade ? [...trades, replayTrade] : trades;
 
             return (
                 <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden" ref={overlayRef}>
                     
+                    {pauses.map((p, i) => (
+                        <div key={`pause_${i}`} className="pause-glass-box absolute z-[5] bg-rose-900/20 border-x border-rose-500/40 backdrop-blur-[2px] flex flex-col items-center justify-center pointer-events-none" style={{display: 'none'}}>
+                            <div className="bg-rose-950/80 border border-rose-500/50 px-2 py-1 rounded text-[8px] font-black text-rose-400 rotate-[-90deg] whitespace-nowrap tracking-widest shadow-[0_0_10px_rgba(225,29,72,0.3)] uppercase">ПАУЗА 30 МИН</div>
+                        </div>
+                    ))}
+
                     {allTradesToRender.map((trade, i) => {
                         const isWin = trade.pnl > 0 || trade.result?.includes('WIN');
                         const isLoss = trade.result === 'LOSS';
@@ -817,11 +765,6 @@
                             pricePercent = currentPriceRef?.current ? (Math.abs(currentPriceRef.current - trade.entryPrice) / trade.entryPrice * 100).toFixed(2) : '0.00';
                         } else {
                             pricePercent = trade.effectivePricePercent ? trade.effectivePricePercent.toFixed(2) : '0.00';
-                        }
-
-                        // Убираем рендер мелких сделок из DOM
-                        if (!isActive && trade.isSmallWin) {
-                            return <div key={trade.id || i} className="trade-glass-box hidden" style={{display: 'none'}}></div>;
                         }
 
                         // Логика цвета бокса (только для Loss, HighQuality или Active)
@@ -867,15 +810,6 @@
                         );
                     })}
                     
-                    <div className={`zone-capsule ${zoneInfo?.type === 'RESISTANCE' ? 'zone-capsule-res' : 'zone-capsule-sup'}`}>
-                        {zoneInfo && isFocusMode && (
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center w-[140px]">
-                                <div className="text-[11px] font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,1)] tracking-widest border-b border-current uppercase mb-1 pb-1">ЗОНА 1H: {zoneInfo.type}</div>
-                                <div className="text-[9px] font-bold text-slate-300">ФОКУС ПАТТЕРНА: 15M</div>
-                            </div>
-                        )}
-                    </div>
-
                     <div id="active-tp-zone" style={{display: 'none'}}>
                         {activeTrade && !activeTrade.isPartialClosed && (
                             <div className="text-white/90 font-black text-[9px] tracking-widest drop-shadow-md bg-black/60 px-3 py-1 rounded-lg backdrop-blur-md border border-white/20 flex flex-row gap-2 items-center shadow-[0_5px_15px_rgba(0,0,0,0.5)]">
@@ -923,7 +857,7 @@
                                 <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded shadow-inner ${hoveredTrade.isLong ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-500/30' : 'bg-rose-900/60 text-rose-300 border border-rose-500/30'}`}>
                                     {hoveredTrade.isLong ? 'LONG 15M' : 'SHORT 15M'}
                                 </span>
-                                <span className={`text-xs font-black ${hoveredTrade.pnl > 0 ? (hoveredTrade.isHighQuality ? 'text-emerald-400 drop-shadow-[0_0_5px_rgba(52,211,153,0.8)]' : 'text-emerald-500/50') : hoveredTrade.pnl < 0 ? 'text-rose-400 drop-shadow-[0_0_5px_rgba(225,29,72,0.8)]' : 'text-amber-400 animate-pulse'}`}>
+                                <span className={`text-xs font-black ${hoveredTrade.pnl > 0 ? 'text-emerald-400 drop-shadow-[0_0_5px_rgba(52,211,153,0.8)]' : hoveredTrade.pnl < 0 ? 'text-rose-400 drop-shadow-[0_0_5px_rgba(225,29,72,0.8)]' : 'text-amber-400 animate-pulse'}`}>
                                     {hoveredTrade.pnl > 0 ? 'ПРИБЫЛЬ' : hoveredTrade.pnl < 0 ? 'УБЫТОК' : 'АКТИВНА'}
                                 </span>
                             </div>
@@ -962,6 +896,7 @@
             const [currentTF, setCurrentTF] = useState(MAIN_TIMEFRAME); 
             
             const [tradesHistory, setTradesHistory] = useState([]);
+            const [pausesHistory, setPausesHistory] = useState([]);
             const [activeTrade, setActiveTrade] = useState(null);
             const [replayTrade, setReplayTrade] = useState(null);
             const [zoneInfo, setZoneInfo] = useState(null);
@@ -1005,7 +940,8 @@
                 consecutiveLosses: 0,
                 securityPauseUntil: 0,
                 forcedDirection: null,
-                dailyStartBalance: INITIAL_BALANCE
+                dailyStartBalance: INITIAL_BALANCE,
+                pauses: []
             });
 
             // ОБНОВЛЕННАЯ СТАТИСТИКА (Только качественные сделки)
@@ -1013,55 +949,41 @@
                 const thirtyDaysAgo = (Date.now() / 1000) - (30 * 24 * 3600);
                 const recentTrades = tradesHistory.filter(t => t.closeTime >= thirtyDaysAgo && t.status === 'CLOSED');
                 
-                let grossProfit = 0, grossLoss = 0;
-                let qualityWins = 0, smallWins = 0, qualityPnL = 0;
-                let maxWin = 0, maxLoss = 0;
-                let lossCount = 0;
+                let qualityWins = 0, qualityPnL = 0;
+                let grossLoss = 0, lossCount = 0;
+                let smallWins = 0;
 
                 recentTrades.forEach(t => {
-                    if (t.pnl > 0) {
-                        if (t.isHighQuality) {
-                            qualityWins++;
-                            qualityPnL += t.pnl;
-                            grossProfit += t.pnl;
-                            if (t.pnl > maxWin) maxWin = t.pnl;
-                        } else {
-                            // Мелкие сделки не участвуют в качественной статистике
-                            smallWins++;
-                            grossProfit += t.pnl; // Баланс все равно пополняется на эти копейки
-                        }
-                    } else {
+                    if (t.pnl > 0 && t.isHighQuality) {
+                        qualityWins++;
+                        qualityPnL += t.pnl;
+                    } else if (t.pnl <= 0) {
                         grossLoss += Math.abs(t.pnl); lossCount++;
-                        if (t.pnl < maxLoss) maxLoss = t.pnl;
                     }
                 });
 
-                const count = recentTrades.length;
-                const pnl = grossProfit - grossLoss;
-                
-                // ВИНРЕЙТ СЧИТАЕТСЯ ТОЛЬКО ПО КАЧЕСТВЕННЫМ ПРОТИВ УБЫТКОВ (МЕЛКИЕ СДЕЛКИ ИГНОРИРУЮТСЯ)
+                // Все игнорированные (скрытые) сделки мы сюда не пускали, поэтому smallWins всегда 0 из истории.
+                // Для честного винрейта используем только реальные качественные победы и стопы
                 const relevantCount = qualityWins + lossCount;
                 const winrate = relevantCount > 0 ? ((qualityWins / relevantCount) * 100).toFixed(1) : 0;
+                const profitFactor = grossLoss === 0 ? (qualityPnL > 0 ? 99 : 0) : (qualityPnL / grossLoss);
                 
-                const profitFactor = grossLoss === 0 ? (grossProfit > 0 ? 99 : 0) : (grossProfit / grossLoss);
-                const avgLoss = lossCount > 0 ? grossLoss / lossCount : 0;
-
-                return { count, pnl, winrate, profitFactor, qualityWins, smallWins, qualityPnL, lossCount, avgLoss, maxWin, maxLoss };
-            }, [tradesHistory]);
+                return { count: relevantCount, pnl: qualityPnL - grossLoss, winrate, profitFactor, qualityWins, qualityPnL, lossCount };
+            }, [tradesHistory, pausesHistory]);
 
             const recommendation = useMemo(() => {
                 const s = monthlyStats;
                 if (s.count < 5) return { text: "Сбор данных для анализа...", style: "text-slate-400 border-slate-500/30 bg-slate-900/40", icon: <InfoIcon size={20} className="text-slate-400" /> };
                 
                 if (s.profitFactor < 1) {
-                    return { text: "Отрицательное ожидание. Система фокусируется на поиске качественных паттернов.", style: "text-rose-400 border-rose-500/50 bg-rose-900/40", icon: <AlertTriangle size={20} /> };
+                    return { text: "Отрицательное ожидание. Система сфокусирована на фильтрации шума и поиске точных входов.", style: "text-rose-400 border-rose-500/50 bg-rose-900/40", icon: <AlertTriangle size={20} /> };
                 }
 
                 if (s.profitFactor >= 2) {
-                    return { text: "Отличный результат за месяц! Алгоритм стабильно собирает движения от 0.9%.", style: "text-emerald-400 border-emerald-500/50 bg-emerald-900/40", icon: <TrendingUp size={20} /> };
+                    return { text: "Отличный результат за месяц! Алгоритм строго забирает качественные движения от 0.75%.", style: "text-emerald-400 border-emerald-500/50 bg-emerald-900/40", icon: <TrendingUp size={20} /> };
                 }
 
-                return { text: "Стабильная торговля с качественными сделками.", style: "text-emerald-400 border-emerald-500/50 bg-emerald-900/40", icon: <TrendingUp size={20} /> };
+                return { text: "Стабильная торговля. В работу берутся только качественные паттерны.", style: "text-emerald-400 border-emerald-500/50 bg-emerald-900/40", icon: <TrendingUp size={20} /> };
             }, [monthlyStats]);
 
             const initAudio = () => {
@@ -1188,23 +1110,6 @@
                 return () => clearInterval(rotInt); 
             }, [isStarted, newsData]);
 
-            useEffect(() => {
-                if (!isStarted || newsData.length === 0) return;
-                
-                const tryReadNews = () => {
-                    if (speechQueueRef.current.length === 0 && !isSpeakingRef.current) {
-                        const randomNewsIndex = Math.floor(Math.random() * newsData.length);
-                        const newsText = newsData[randomNewsIndex];
-                        enqueueSpeech(`Фоновая сводка новостей. ${newsText}`, `news-update`, 0);
-                    } else {
-                        setTimeout(tryReadNews, 30000);
-                    }
-                };
-
-                const newsReaderInterval = setInterval(tryReadNews, 15 * 60 * 1000); 
-                return () => clearInterval(newsReaderInterval);
-            }, [isStarted, newsData, enqueueSpeech]);
-
             const initChart = async () => {
                 if (!chartContainerRef.current) { setTimeout(initChart, 500); return; }
                 if (!window.LightweightCharts) {
@@ -1304,10 +1209,14 @@
                 let simPeak = simBalance;
                 
                 const startIdx = Math.max(50, data15m.length - 2880); 
-                let btEngineState = { forcedDirection: null, consecutiveLosses: 0 };
+                let btEngineState = { forcedDirection: null, consecutiveLosses: 0, securityPauseUntil: 0, pauses: [] };
+                let ignoredSmallWins = 0;
 
                 for (let i = startIdx; i < data15m.length - 2; i++) {
                     if (i % 50 === 0) await sleep(10);
+                    
+                    // Блокировка во время паузы безопасности
+                    if (data15m[i].time < btEngineState.securityPauseUntil) continue;
 
                     const sig = evaluateSignalEngineHybrid(data15m, i, lMap1H, aMap1H, btEngineState);
                     
@@ -1446,40 +1355,55 @@
                         trade.closePrice = closePrice;
                         trade.isPartialClosed = isPartialClosed;
                         
-                        // РАСЧЕТ КАЧЕСТВА СДЕЛКИ (ПРОЦЕНТ ПРОФИТА ОТ ЦЕНЫ > 0.9%)
+                        // РАСЧЕТ КАЧЕСТВА СДЕЛКИ (ПРОЦЕНТ ПРОФИТА ОТ ЦЕНЫ >= 0.75%)
                         const riskPriceDist = Math.abs(trade.entryPrice - trade.slPrice);
                         const rRealized = trade.realizedR;
                         const avgExitPrice = trade.isLong ? trade.entryPrice + (rRealized * riskPriceDist) : trade.entryPrice - (rRealized * riskPriceDist);
                         trade.effectivePricePercent = (Math.abs(avgExitPrice - trade.entryPrice) / trade.entryPrice) * 100;
                         
-                        trade.isHighQuality = trade.pnl > 0 && trade.effectivePricePercent >= 0.9;
-                        trade.isSmallWin = trade.pnl > 0 && trade.effectivePricePercent < 0.9;
+                        trade.isHighQuality = trade.pnl > 0 && trade.effectivePricePercent >= MIN_QUALITY_PROFIT;
+                        trade.isSmallWin = trade.pnl > 0 && !trade.isHighQuality;
 
-                        histTrades.push(trade); 
-                        simBalance += pnl;
-
-                        if (simBalance > simPeak) simPeak = simBalance;
-                        const dd = (simPeak - simBalance) / simPeak;
-                        if (dd > maxDDRef.current) maxDDRef.current = dd;
-
-                        if (result === 'LOSS') {
-                            btEngineState.consecutiveLosses += 1;
-                            if (btEngineState.consecutiveLosses >= 3) {
-                                btEngineState.forcedDirection = null;
-                                btEngineState.consecutiveLosses = 0; 
-                            } else {
-                                btEngineState.forcedDirection = trade.isLong ? 'SHORT' : 'LONG';
-                            }
-                        } else {
-                            btEngineState.forcedDirection = null;
-                            btEngineState.consecutiveLosses = 0;
+                        let isIgnored = false;
+                        if (trade.isSmallWin) {
+                            isIgnored = true;
+                            pnl = 0; // Игнорируем в бэктесте
+                            trade.pnl = 0;
+                            ignoredSmallWins++;
                         }
 
+                        if (!isIgnored) {
+                            histTrades.push(trade); 
+                            simBalance += pnl;
+
+                            if (simBalance > simPeak) simPeak = simBalance;
+                            const dd = (simPeak - simBalance) / simPeak;
+                            if (dd > maxDDRef.current) maxDDRef.current = dd;
+
+                            if (result === 'LOSS') {
+                                btEngineState.consecutiveLosses += 1;
+                                if (btEngineState.consecutiveLosses >= 2) {
+                                    // 2 ЛОССА ПОДРЯД = ПАУЗА 30 МИНУТ
+                                    btEngineState.securityPauseUntil = closeTime + 1800; 
+                                    btEngineState.pauses.push({ startTime: closeTime, endTime: closeTime + 1800 });
+                                    btEngineState.forcedDirection = null;
+                                    btEngineState.consecutiveLosses = 0; 
+                                } else {
+                                    // 1 ЛОСС = РЕВЕРС
+                                    btEngineState.forcedDirection = trade.isLong ? 'SHORT' : 'LONG';
+                                }
+                            } else {
+                                btEngineState.forcedDirection = null;
+                                btEngineState.consecutiveLosses = 0;
+                            }
+                        }
+                        
                         i += 4; 
                     }
                 }
                 
                 updateTradeHistory([...histTrades].reverse());
+                setPausesHistory(btEngineState.pauses);
                 
                 setGlobalMaxDD(maxDDRef.current);
                 propBalanceRef.current = simBalance;
@@ -1493,8 +1417,7 @@
                 setAppPhase('ВИЗУАЛИЗАЦИЯ ИСТОРИИ СДЕЛОК...');
                 await sleep(500); 
 
-                // Отрисовываем только качественные сделки и лоссы
-                for(let trade of histTrades.filter(t => !t.isSmallWin)) { 
+                for(let trade of histTrades) { 
                     if (!engineActive.current) break;
                     chartInstance.current.timeScale().setVisibleLogicalRange({ from: trade.logicalIndex - 30, to: trade.logicalIndex + 30 });
                     setReplayTrade(trade); 
@@ -1506,21 +1429,17 @@
                 
                 const pnlDollars = simBalance - INITIAL_BALANCE;
                 let qualityCount = 0;
-                let smallCount = 0;
                 let losses = 0;
+                let pausesCount = btEngineState.pauses.length;
                 
                 histTrades.forEach(t => {
-                    if (t.pnl > 0) {
-                        if (t.isHighQuality) qualityCount++; else smallCount++;
-                    } else {
-                        losses++;
-                    }
+                    if (t.pnl > 0) qualityCount++; else losses++;
                 });
                 
                 // ОЗВУЧКА СОГЛАСНО НОВЫМ ПРАВИЛАМ
-                enqueueSpeech(`Завершен анализ за 30 дней. Качественных успешных сделок: ${qualityCount}. Мелких сделок, которые были отфильтрованы: ${smallCount}. Убыточных: ${losses}. Общий результат: ${pnlDollars > 0 ? 'плюс' : 'минус'} ${Math.abs(Math.round(pnlDollars))} долларов.`, 'bt-stats', 0);
+                enqueueSpeech(`Завершен анализ за 30 дней. Качественных успешных сделок: ${qualityCount}. Убыточных: ${losses}. Система безопасности активировалась ${pausesCount} раз. Мелких сделок, которые были проигнорированы: ${ignoredSmallWins}. Итоговый результат: ${pnlDollars > 0 ? 'плюс' : 'минус'} ${Math.abs(Math.round(pnlDollars))} долларов.`, 'bt-stats', 0);
                 
-                const winningTrades = histTrades.filter(t => t.isHighQuality);
+                const winningTrades = histTrades.filter(t => t.pnl > 0);
                 if (winningTrades.length > 0) {
                     const sortedWins = [...winningTrades].sort((a,b) => b.pnl - a.pnl);
                     const topWins = sortedWins.slice(0, Math.max(1, Math.floor(sortedWins.length * 0.2)));
@@ -1547,6 +1466,7 @@
                 
                 let lastEvaluatedCandleTime = data15m[data15m.length - 1].time;
                 engineStateRef.current.dailyStartBalance = simBalance;
+                engineStateRef.current.pauses = btEngineState.pauses;
 
                 // --- LIVE SCANNING LOOP (HYBRID) ---
                 while (engineActive.current) {
@@ -1563,21 +1483,19 @@
                             setAppPhase(`ДОСТИГНУТ ЛИМИТ ПРОСАДКИ ЗА ДЕНЬ (2.5%)`);
                             setZoneInfo(null); currentZoneRef.current = null;
                             setCurrentTF('SYSTEM LOCKED');
-                            enqueueSpeech('Достигнут дневной лимит потерь. Торговля заблокирована до конца сессии.', 'daily-limit', 3600000);
                             await sleep(60000);
                             continue;
                         }
 
                         if (engineStateRef.current.securityPauseUntil > nowSec) {
                             setAppState('PAUSED');
-                            setAppPhase(`ЗАЩИТА (3 УБЫТКА). ПАУЗА 60 МИНУТ.`);
+                            setAppPhase(`СИСТЕМА БЕЗОПАСНОСТИ: ПАУЗА ДО ОКОНЧАНИЯ`);
                             setZoneInfo(null); currentZoneRef.current = null;
                             setCurrentTF('SYSTEM PAUSE');
                             await sleep(5000);
                             continue;
                         }
 
-                        // Реальные данные для стакана и метрик
                         const ob = await ScannerAPIRealTime.getOrderBook('BTCUSDT', 10);
                         if (ob) setOrderBook(ob);
 
@@ -1592,7 +1510,6 @@
                         
                         if (candleSeries.current) candleSeries.current.update(tick);
 
-                        // Живые метрики для приборной панели
                         let avgVolTmp = newCandles15m.reduce((a,b)=>a+b.volume,0) / newCandles15m.length;
                         let vScore = Math.min(100, Math.round((tick.volume / (avgVolTmp||1)) * 50) || 50);
                         let sScore = Math.round(50 + ((tick.close - tick.open) / (tick.high - tick.low || 1)) * 40);
@@ -1684,7 +1601,7 @@
 
                                     const isRecovery = engineStateRef.current.consecutiveLosses > 0;
                                     const prepMsg = isRecovery ? 
-                                        `Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Включен режим контроля убытков.` : 
+                                        `Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Реверсная позиция. Включен режим контроля убытков.` : 
                                         `Слияние таймфреймов успешно. Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Условия ${liveSignal.decision === 'TRAIL' ? 'благоприятные. Трейлинг активирован.' : 'средние. Поиск фиксированной качественной цели.'}`;
                                     
                                     enqueueSpeech(prepMsg, 'prep-sig', 0);
@@ -1839,17 +1756,17 @@
                                 const avgExitPrice = activeT.isLong ? activeT.entryPrice + (rRealized * riskPriceDist) : activeT.entryPrice - (rRealized * riskPriceDist);
                                 activeT.effectivePricePercent = (Math.abs(avgExitPrice - activeT.entryPrice) / activeT.entryPrice) * 100;
                                 
-                                activeT.isHighQuality = activeT.pnl > 0 && activeT.effectivePricePercent >= 0.9;
-                                activeT.isSmallWin = activeT.pnl > 0 && activeT.effectivePricePercent < 0.9;
-                                
-                                if (result.includes('WIN (FIXED)') || result.includes('WIN (TARGET)')) {
+                                activeT.isHighQuality = activeT.pnl > 0 && activeT.effectivePricePercent >= MIN_QUALITY_PROFIT;
+                                activeT.isSmallWin = activeT.pnl > 0 && !activeT.isHighQuality;
+
+                                let isIgnored = false;
+                                if (activeT.isSmallWin) {
+                                    isIgnored = true;
+                                    activeT.pnl = 0;
+                                    enqueueSpeech('Сделка закрыта. Прибыль ниже минимального порога. Ордер отфильтрован из статистики.', `skip-${Date.now()}`, 0);
+                                } else if (result.includes('WIN')) {
                                     enqueueSpeech(`Тейк профит достигнут. Прибыль составила ${activeT.pnl.toFixed(2)} долларов.`, `tp-announce-${activeT.id}`, 0);
                                     playSound('win');
-                                    engineStateRef.current.consecutiveLosses = 0;
-                                    engineStateRef.current.forcedDirection = null;
-                                } else if (result.includes('WIN (TRAILED)')) {
-                                    playSound('win');
-                                    enqueueSpeech(activeT.isHighQuality ? 'Сделка качественно закрыта по структурному трейлингу.' : 'Сделка закрыта. Ордер отфильтрован как нейтральный, так как таргет ниже порога.', `trail-${Date.now()}`, 0);
                                     engineStateRef.current.consecutiveLosses = 0;
                                     engineStateRef.current.forcedDirection = null;
                                 } else if (result === 'LOSS') {
@@ -1857,17 +1774,25 @@
                                     enqueueSpeech(`Сработал стоп лосс. Позиция закрыта. Это контролируемый риск.`, `sl-announce-${activeT.id}`, 0);
                                     
                                     engineStateRef.current.consecutiveLosses += 1;
-                                    if (engineStateRef.current.consecutiveLosses >= 3) {
-                                        engineStateRef.current.securityPauseUntil = Math.floor(Date.now()/1000) + (60 * 60); 
+                                    if (engineStateRef.current.consecutiveLosses >= 2) {
+                                        const pEnd = Math.floor(Date.now()/1000) + 1800;
+                                        engineStateRef.current.securityPauseUntil = pEnd; 
                                         engineStateRef.current.forcedDirection = null; 
                                         engineStateRef.current.consecutiveLosses = 0; 
+                                        
+                                        setPausesHistory(prev => [...prev, { startTime: Math.floor(Date.now()/1000), endTime: pEnd }]);
+                                        enqueueSpeech(`Зафиксировано два убытка подряд. Активирована пауза безопасности на 30 минут.`, `sec-pause-${activeT.id}`, 0);
                                     } else {
                                         engineStateRef.current.forcedDirection = activeT.isLong ? 'SHORT' : 'LONG';
+                                        enqueueSpeech(`Включен реверсный режим. Следующий поиск строго в противоположную сторону.`, `reverse-${activeT.id}`, 0);
                                     }
                                 }
 
-                                updateBalance(activeT.pnl);
-                                updateTradeHistory([activeT, ...tradesHistoryRef.current].slice(0, 100)); 
+                                if (!isIgnored) {
+                                    updateBalance(activeT.pnl);
+                                    updateTradeHistory([activeT, ...tradesHistoryRef.current].slice(0, 100)); 
+                                }
+
                                 setLiveTrade(null);
                                 clearLines(); 
                                 
@@ -1927,10 +1852,6 @@
 
             let recBorder = 'border-emerald-500/50'; let recBg = 'bg-emerald-900/20'; let recText = 'text-emerald-400';
             if (monthlyStats.profitFactor < 1) { recBorder = 'border-rose-500/50'; recBg = 'bg-rose-900/20'; recText = 'text-rose-400'; }
-            else if (monthlyStats.smallWins > monthlyStats.qualityWins) { recBorder = 'border-amber-500/50'; recBg = 'bg-amber-900/20'; recText = 'text-amber-400'; }
-
-            // ОТОБРАЖАЕМ В ЖУРНАЛЕ ТОЛЬКО КАЧЕСТВЕННЫЕ СДЕЛКИ И ЛОССЫ
-            const visibleTradesHistory = tradesHistory.filter(t => !t.isSmallWin);
 
             return (
                 <div className="h-[100dvh] w-screen flex flex-col relative overflow-hidden bg-[#030108] text-slate-100 font-sans">
@@ -1984,11 +1905,11 @@
                     {appState === 'PAUSED' && (
                         <div className="absolute inset-0 z-50 bg-[#030108]/95 backdrop-blur-2xl flex flex-col items-center justify-center p-6 text-center border-4 border-rose-900/50">
                             <Shield size={100} className="text-rose-500 mb-8 drop-shadow-[0_0_40px_rgba(225,29,72,0.9)] animate-pulse" />
-                            <h1 className="text-5xl md:text-6xl font-black text-white oswald-font tracking-[0.2em] mb-6 drop-shadow-lg">РЫНОК НЕСТАБИЛЕН</h1>
+                            <h1 className="text-5xl md:text-6xl font-black text-white oswald-font tracking-[0.2em] mb-6 drop-shadow-lg">ПАУЗА БЕЗОПАСНОСТИ</h1>
                             <div className="bg-rose-950/50 border border-rose-500/30 px-8 py-4 rounded-2xl mb-8">
-                                <h2 className="text-2xl md:text-3xl font-bold text-rose-300">ЗАЩИТНАЯ БЛОКИРОВКА АКТИВИРОВАНА</h2>
+                                <h2 className="text-2xl md:text-3xl font-bold text-rose-300">ФОКУС: ЗАЩИТА БАЛАНСА</h2>
                             </div>
-                            <p className="text-xl text-slate-300 font-mono max-w-2xl leading-relaxed">Система зафиксировала серию убытков или лимит просадки. Алгоритмы сканирования временно приостановлены для защиты капитала.</p>
+                            <p className="text-xl text-slate-300 font-mono max-w-2xl leading-relaxed">Система зафиксировала серию убытков или лимит просадки. Алгоритмы сканирования приостановлены на 30 минут.</p>
                         </div>
                     )}
 
@@ -2026,7 +1947,6 @@
                     </header>
 
                     <main className="flex-1 flex p-5 gap-5 overflow-hidden z-10 flex-col xl:flex-row">
-                        {/* LEFT COLUMN: Chart */}
                         <div className="flex-1 flex flex-col gap-5 overflow-hidden h-full relative">
                             
                             {appState === 'BEST_TRADE_REVIEW' && bestTradeReview && (
@@ -2055,11 +1975,6 @@
                                                 <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold">Прибыль PnL</span>
                                                 <span className="font-black text-emerald-400 text-sm">+{bestTradeReview.pnl.toFixed(2)}$</span>
                                             </div>
-                                        </div>
-                                        
-                                        <div className="mt-4 text-[10px] text-slate-300 font-mono text-center flex items-center gap-2">
-                                            <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></div>
-                                            Сделка превзошла минимальный таргет (0.9%)
                                         </div>
                                     </div>
                                 </div>
@@ -2115,6 +2030,7 @@
                                     replayTrade={replayTrade} 
                                     slCountdown={slCountdown}
                                     currentPriceRef={currentPrice}
+                                    pauses={pausesHistory}
                                 />
                             </div>
 
@@ -2130,7 +2046,7 @@
                                 <div className="absolute top-0 right-0 p-2 opacity-20"><Activity size={60} /></div>
                                 <h3 className="text-[11px] font-black tracking-[0.15em] uppercase text-indigo-300 border-b border-indigo-500/20 pb-1.5 flex items-center justify-between">
                                     <span>Аналитика за 30 Дней</span>
-                                    {isRecoveryMode && <span className="px-1.5 py-0.5 bg-rose-600/20 text-rose-300 text-[8px] rounded border border-rose-500/30 animate-pulse">RECOVERY</span>}
+                                    {isRecoveryMode && <span className="px-1.5 py-0.5 bg-rose-600/20 text-rose-300 text-[8px] rounded border border-rose-500/30 animate-pulse">REVERSE</span>}
                                 </h3>
                                 
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] font-mono relative z-10">
@@ -2141,11 +2057,9 @@
                                         </span>
                                     </div>
                                     <div className="flex justify-between text-slate-400"><span>Винрейт (CQ):</span> <span className="text-fuchsia-400 font-black">{monthlyStats.winrate}%</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>Качественные (≥0.9%):</span> <span className="text-emerald-400 font-black">{monthlyStats.qualityWins}</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>Отфильтровано:</span> <span className="text-slate-500 font-black">{monthlyStats.smallWins}</span></div>
+                                    <div className="flex justify-between text-slate-400"><span>Качественные (≥0.75%):</span> <span className="text-emerald-400 font-black">{monthlyStats.qualityWins}</span></div>
+                                    <div className="flex justify-between text-slate-400"><span>Пауз Безопасности:</span> <span className="text-rose-400 font-black">{pausesHistory.length}</span></div>
                                     <div className="flex justify-between text-slate-400"><span>Убыточные (SL):</span> <span className="text-rose-400 font-black">{monthlyStats.lossCount}</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>PnL (Качеств.):</span> <span className="text-emerald-300 font-black">+{monthlyStats.qualityPnL.toFixed(2)}$</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>Avg Loss:</span> <span className="text-rose-400 font-black">-{monthlyStats.avgLoss.toFixed(2)}$</span></div>
                                     
                                     <div className="flex justify-between text-slate-400 col-span-2 border-t border-indigo-500/20 pt-1.5 mt-1">
                                         <span className="font-bold text-white">Общий 30D PnL:</span> 
@@ -2209,9 +2123,9 @@
                                     <span className="text-emerald-500/70 text-[9px] border border-emerald-500/30 px-1.5 rounded bg-emerald-900/20">ТОЛЬКО КАЧЕСТВЕННЫЕ</span>
                                 </h3>
                                 <div className="flex-1 overflow-y-auto journal-scroll pr-2 flex flex-col gap-2">
-                                    {visibleTradesHistory.length === 0 ? (
+                                    {tradesHistory.length === 0 ? (
                                         <div className="text-[10px] text-slate-500 text-center font-mono mt-4">Ожидание сделок...</div>
-                                    ) : visibleTradesHistory.map((t, idx) => (
+                                    ) : tradesHistory.map((t, idx) => (
                                         <div key={t.id || idx} className={`p-2.5 rounded-xl border flex flex-col gap-1.5 transition-all cursor-default group ${t.pnl > 0 && t.isHighQuality ? 'bg-[#0f182b]/80 border-emerald-500/20 hover:border-emerald-500/40' : 'bg-[#1a0f14]/80 border-rose-500/10 hover:border-rose-500/30'}`}>
                                             <div className="flex justify-between items-center">
                                                 <div className="flex gap-2 items-center">
@@ -2246,7 +2160,6 @@
         console.log("[System] Компонент App успешно определен, подготовка к инициализации...");
 
         function initApp() {
-            // Проверяем, что React и ReactDOM загружены
             if (!window.React || !window.ReactDOM) {
                 console.error("React или ReactDOM не загружены");
                 return;
@@ -2267,11 +2180,9 @@
             }
         }
 
-        // Запуск приложения
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initApp);
         } else {
-            // Если DOM уже готов
             setTimeout(initApp, 50);
         }
     </script>
