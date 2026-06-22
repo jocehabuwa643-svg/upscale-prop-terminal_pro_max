@@ -86,6 +86,12 @@
             border-radius: 1.5rem;
         }
 
+        .text-gradient {
+            background: linear-gradient(135deg, #d946ef, #e2e8f0, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
         .massive-broker-btn {
             background: linear-gradient(135deg, rgba(147, 51, 234, 0.7) 0%, rgba(79, 70, 229, 0.7) 50%, rgba(30, 27, 75, 0.8) 100%);
             backdrop-filter: blur(20px) saturate(150%);
@@ -139,17 +145,27 @@
             animation: gentle-pulse 2.5s infinite alternate ease-in-out;
         }
         @keyframes gentle-pulse {
-            0% { opacity: 0.7; box-shadow: 0 0 15px currentColor; }
-            100% { opacity: 1; box-shadow: 0 0 35px currentColor; }
+            0% { opacity: 0.7; box-shadow: 0 0 15px currentColor; filter: brightness(1); }
+            100% { opacity: 1; box-shadow: 0 0 35px currentColor; filter: brightness(1.2); }
         }
         .glass-zone-tp-long { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); border-top-color: rgba(16, 185, 129, 0.6); }
         .glass-zone-tp-short { background: rgba(225, 29, 72, 0.15); border-color: rgba(225, 29, 72, 0.4); border-top-color: rgba(225, 29, 72, 0.6); }
         .glass-zone-sl { background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4); border-top-color: rgba(168, 85, 247, 0.6); }
         
-        .zone-interest-res { background: rgba(239, 68, 68, 0.15); border: 2px solid rgba(239, 68, 68, 0.6); box-shadow: 0 0 40px rgba(239, 68, 68, 0.3); color: #fca5a5; }
-        .zone-interest-sup { background: rgba(16, 185, 129, 0.15); border: 2px solid rgba(16, 185, 129, 0.6); box-shadow: 0 0 40px rgba(16, 185, 129, 0.3); color: #6ee7b7; }
+        .zone-interest-res { 
+            background: linear-gradient(180deg, rgba(239, 68, 68, 0.15) 0%, transparent 100%); 
+            border-top: 2px solid rgba(239, 68, 68, 0.8); 
+            box-shadow: inset 0 20px 40px -10px rgba(239, 68, 68, 0.2), 0 -10px 30px rgba(239, 68, 68, 0.2); 
+            color: #fca5a5; 
+        }
+        .zone-interest-sup { 
+            background: linear-gradient(0deg, rgba(16, 185, 129, 0.15) 0%, transparent 100%); 
+            border-bottom: 2px solid rgba(16, 185, 129, 0.8); 
+            box-shadow: inset 0 -20px 40px -10px rgba(16, 185, 129, 0.2), 0 10px 30px rgba(16, 185, 129, 0.2); 
+            color: #6ee7b7; 
+        }
 
-        /* ОБНОВЛЕННАЯ 3D АНИМАЦИЯ ПИРАМИДЫ */
+        /* 3D АНИМАЦИЯ ПИРАМИДЫ С ГЛАЗОМ */
         .pyramid-container {
             perspective: 800px;
             width: 140px;
@@ -161,35 +177,36 @@
             width: 100%;
             height: 100%;
             transform-style: preserve-3d;
-            animation: spin-pyramid-3d 4s linear infinite;
+            animation: spin-pyramid-3d 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
             position: relative;
         }
         @keyframes spin-pyramid-3d {
-            0% { transform: rotateX(15deg) rotateY(0deg); }
-            100% { transform: rotateX(15deg) rotateY(360deg); }
+            from { transform: rotateX(15deg) rotateY(0deg); }
+            to { transform: rotateX(15deg) rotateY(360deg); }
         }
         .pyramid-face {
             position: absolute;
-            top: 20px; left: 10px;
+            top: 15px; left: 10px;
             width: 0; height: 0;
             border-left: 60px solid transparent;
             border-right: 60px solid transparent;
-            border-bottom: 100px solid;
+            border-bottom: 110px solid;
             transform-origin: 50% 100%;
-            opacity: 0.8;
+            opacity: 0.85;
+            filter: drop-shadow(0 0 10px rgba(217, 70, 239, 0.5));
         }
-        .face-front { transform: translateZ(35px) rotateX(25deg); border-bottom-color: rgba(217, 70, 239, 0.9); }
+        .face-front { transform: translateZ(35px) rotateX(25deg); border-bottom-color: rgba(217, 70, 239, 0.95); }
         .face-back { transform: translateZ(-35px) rotateX(-25deg) rotateY(180deg); border-bottom-color: rgba(168, 85, 247, 0.7); }
         .face-left { transform: translateX(-35px) rotateY(-90deg) rotateX(25deg); border-bottom-color: rgba(192, 132, 252, 0.8); }
         .face-right { transform: translateX(35px) rotateY(90deg) rotateX(25deg); border-bottom-color: rgba(147, 51, 234, 0.8); }
         .pyramid-eye {
             position: absolute; top: 60%; left: 50%;
-            transform: translate(-50%, -50%) translateZ(0px);
-            font-size: 32px;
-            text-shadow: 0 0 20px rgba(255,255,255,1);
-            animation: eye-pulse-3d 2s infinite alternate;
+            transform: translate(-50%, -50%) translateZ(40px);
+            font-size: 38px;
+            text-shadow: 0 0 25px rgba(255,255,255,1);
+            animation: eye-pulse-3d 1.5s infinite alternate;
         }
-        @keyframes eye-pulse-3d { 0% { transform: translate(-50%, -50%) scale(0.9); filter: brightness(1); } 100% { transform: translate(-50%, -50%) scale(1.1); filter: brightness(1.5); } }
+        @keyframes eye-pulse-3d { 0% { transform: translate(-50%, -50%) translateZ(40px) scale(0.9); filter: brightness(1); } 100% { transform: translate(-50%, -50%) translateZ(40px) scale(1.15); filter: brightness(1.6); } }
 
         .timer-alert-pulse { animation: timer-alert 1s infinite; }
         @keyframes timer-alert {
@@ -205,10 +222,27 @@
         .pixel-pulse { animation: pixel-pulse 2s infinite alternate; }
         @keyframes pixel-pulse { 0% { opacity: 0.3; } 100% { opacity: 1; box-shadow: 0 0 8px currentColor; } }
         
-        /* Гарантия четкого графика */
+        /* Лазер сканирования на графике */
+        .chart-scanner-laser {
+            position: absolute;
+            top: 0; bottom: 0;
+            width: 3px;
+            background: #d946ef;
+            box-shadow: 0 0 20px 8px rgba(217, 70, 239, 0.5);
+            animation: chart-scan 3s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+            z-index: 25;
+            pointer-events: none;
+        }
+        @keyframes chart-scan {
+            0% { left: 0%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { left: 100%; opacity: 0; }
+        }
+
         .crisp-chart-container {
             opacity: 1 !important;
-            filter: contrast(1.05) brightness(1.05);
+            filter: none !important; /* Убрали все фильтры для идеальной четкости */
         }
     </style>
 </head>
@@ -284,12 +318,11 @@
         const TrendingDown = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline></svg>);
         const InfoIcon = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>);
 
-        // Константы
         const INITIAL_BALANCE = 5000;
         const RISK_PERCENT = 0.0075; // ЖЕСТКО ФИКСИРОВАННЫЙ РИСК 0.75%
         const MAIN_TIMEFRAME = 'HYBRID 1H/15M (30D)';
         const MAX_DAILY_DD = 0.025; 
-        const MIN_QUALITY_PROFIT = 0.75; // Жесткий порог качества
+        const MIN_QUALITY_PROFIT = 0.75; 
         const MIN_SCORE = 78; // Повышенный скор для входа
 
         const fetchWithTimeout = async (url, options = {}) => {
@@ -390,7 +423,6 @@
             return res;
         }
 
-        // Тренд старшего таймфрейма (SMA 20)
         function calcTrendSeries(data, period = 20) {
             let res = [];
             for (let i = 0; i < data.length; i++) {
@@ -433,7 +465,7 @@
             const distTop = cUpper - curr15m.close;
             const distBot = curr15m.close - cLower;
             
-            const inResZone = distTop > -cAtr * 2.0 && distTop < cAtr * 3.5; // Расширили зону поиска
+            const inResZone = distTop > -cAtr * 2.0 && distTop < cAtr * 3.5; 
             const inSupZone = distBot > -cAtr * 2.0 && distBot < cAtr * 3.5;
             
             if (!inResZone && !inSupZone) return { valid: false, score: 0 };
@@ -476,7 +508,6 @@
             if (isBearFVG && isBearish) shortConfluence += 15;
             if (isBullFVG && isBullish) longConfluence += 15;
 
-            // 1H Trend Alignment Bonus
             if (cTrend === 1) longConfluence += 15;
             if (cTrend === -1) shortConfluence += 15;
 
@@ -484,11 +515,13 @@
             if (!engineState.forcedDirection) {
                 if (cTrend === -1) longConfluence = 0; 
                 if (cTrend === 1) shortConfluence = 0; 
+            } else {
+                if (engineState.forcedDirection === 'LONG') shortConfluence = 0;
+                if (engineState.forcedDirection === 'SHORT') longConfluence = 0;
             }
 
             let isLong = false; let isShort = false; let patternName = ''; let finalScore = 0;
 
-            // Повышенный минимальный порог
             if (shortConfluence >= MIN_SCORE && engineState.forcedDirection !== 'LONG') {
                 isShort = true; finalScore = shortConfluence;
                 if (isBearishRejection) patternName = 'LIQUIDITY SWEEP';
@@ -508,7 +541,6 @@
             
             const slDistancePercent = Math.abs(entryPrice - rawSlPrice) / entryPrice * 100;
             
-            // Если стоп-лосс слишком далеко, то для профита >= 0.75% потребуется плохой RR. Отсеиваем.
             if (slDistancePercent > 1.3) return { valid: false, score: 0 }; 
             
             let slPrice = rawSlPrice;
@@ -516,7 +548,6 @@
             
             const riskDist = Math.abs(entryPrice - slPrice);
             
-            // Целевые таргеты (приоритет 1.0% - 1.3%)
             const decision = finalScore >= 85 ? 'TRAIL' : 'FIXED';
             const targetPercentValue = decision === 'TRAIL' ? 1.3 : 1.0; 
             const tpDist = entryPrice * (targetPercentValue / 100);
@@ -599,7 +630,6 @@
                         if (!trade) { box.style.display = 'none'; return; }
 
                         const isTradeActive = trade.status === 'ACTIVE';
-                        // ЖЕСТКИЙ ФИЛЬТР: мелкие сделки не рендерятся вообще
                         if (!isTradeActive && trade.isSmallWin) {
                             box.style.display = 'none'; return;
                         }
@@ -633,7 +663,7 @@
                                 if (entryDot && exitDot) {
                                     entryDot.style.top = `${yEntry - top}px`;
                                     exitDot.style.top = `${yClose - top}px`;
-                                    entryDot.className = `entry-dot absolute w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] -ml-1 -mt-1 left-0 z-30 ${trade.isLong ? 'bg-emerald-400 text-emerald-400' : 'bg-rose-500 text-rose-500'}`;
+                                    entryDot.className = `entry-dot absolute w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] -ml-1 -mt-1 left-0 z-30 ${trade.isLong ? 'bg-[#e9d5ff] text-[#e9d5ff]' : 'bg-rose-500 text-rose-500'}`;
                                     
                                     if (!isTradeActive) {
                                          exitDot.style.display = 'block';
@@ -648,7 +678,6 @@
                         } else { box.style.display = 'none'; }
                     });
 
-                    // Рендер зон пауз безопасности
                     const pauseBoxes = overlayRef.current.querySelectorAll('.pause-glass-box');
                     pauseBoxes.forEach((box, i) => {
                         const p = pauses[i];
@@ -666,7 +695,6 @@
                         } else { box.style.display = 'none'; }
                     });
 
-                    // TP / SL Зоны
                     const tpZone = overlayRef.current.querySelector('#active-tp-zone');
                     const slZone = overlayRef.current.querySelector('#active-sl-zone');
                     
@@ -697,10 +725,10 @@
                         if(tpZone) tpZone.style.display = 'none'; if(slZone) slZone.style.display = 'none';
                     }
 
-                    // Зоны интереса (Улучшено отображение при подходе цены)
+                    // Зоны интереса (Улучшенная подсветка)
                     const interestZoneBox = overlayRef.current.querySelector('#interest-zone-box');
                     const interestZoneText = overlayRef.current.querySelector('#interest-zone-text');
-                    if (zoneInfo && interestZoneBox) {
+                    if (zoneInfo && isFocusMode && interestZoneBox) {
                         const zTop = series.priceToCoordinate(zoneInfo.top);
                         const zBot = series.priceToCoordinate(zoneInfo.bottom);
                         if (zTop !== null && zBot !== null) {
@@ -709,9 +737,9 @@
                             const height = Math.max(40, Math.abs(zBot - zTop));
                             interestZoneBox.style.top = `${top}px`;
                             interestZoneBox.style.height = `${height}px`;
-                            interestZoneBox.className = `absolute z-[5] pointer-events-none w-full left-0 rounded-xl backdrop-blur-[2px] transition-all duration-300 gentle-pulse-anim flex items-center justify-center ${zoneInfo.type === 'RESISTANCE' ? 'zone-interest-res' : 'zone-interest-sup'}`;
+                            interestZoneBox.className = `absolute z-[5] pointer-events-none w-full left-0 rounded-[1.5rem] backdrop-blur-[2px] transition-all duration-300 gentle-pulse-anim flex items-center justify-center ${zoneInfo.type === 'RESISTANCE' ? 'zone-interest-res' : 'zone-interest-sup'}`;
                             
-                            interestZoneText.innerHTML = `<span class="font-black text-[13px] tracking-[0.2em]">ОЖИДАЕТСЯ ${zoneInfo.type === 'RESISTANCE' ? 'SHORT' : 'LONG'}</span><span class="ml-2 font-mono text-[10px] opacity-80">${zoneInfo.bottom.toFixed(2)} - ${zoneInfo.top.toFixed(2)}</span>`;
+                            interestZoneText.innerHTML = `<span class="font-black text-[14px] tracking-[0.2em] drop-shadow-md">ОЖИДАЕТСЯ ${zoneInfo.type === 'RESISTANCE' ? 'SHORT' : 'LONG'}</span><span class="ml-3 font-mono text-[10px] opacity-80">${zoneInfo.bottom.toFixed(2)} - ${zoneInfo.top.toFixed(2)}</span>`;
                         } else { interestZoneBox.style.display = 'none'; }
                     } else if (interestZoneBox) { interestZoneBox.style.display = 'none'; }
 
@@ -752,12 +780,10 @@
                             pricePercent = trade.effectivePricePercent ? trade.effectivePricePercent.toFixed(2) : '0.00';
                         }
 
-                        // Убираем рендер мелких сделок из DOM
                         if (!isActive && trade.isSmallWin) {
                             return <div key={trade.id || i} className="trade-glass-box hidden" style={{display: 'none'}}></div>;
                         }
 
-                        // Логика цвета бокса
                         const boxClass = isActive ? 'bg-purple-500/20 border-purple-400/50 border-dashed animate-pulse' :
                             isLoss ? 'bg-gradient-to-b from-rose-950/70 to-rose-900/40 border border-rose-700/80 shadow-[0_0_15px_rgba(225,29,72,0.3)]' :
                             'bg-gradient-to-b from-emerald-900/40 to-emerald-800/20 border border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.2)]';
@@ -779,7 +805,7 @@
                                 <div className="exit-dot absolute w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] -mr-1 -mt-1 right-0 z-30"></div>
                                 
                                 <div className="absolute inset-0 rounded flex flex-col items-center justify-center p-1 pointer-events-none z-10 opacity-100 overflow-hidden">
-                                    <span className={`text-[8px] sm:text-[9px] font-black uppercase tracking-widest leading-none mb-0.5 drop-shadow-md ${trade.isLong ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                    <span className={`text-[8px] sm:text-[9px] font-black uppercase tracking-widest leading-none mb-0.5 drop-shadow-md ${trade.isLong ? 'text-[#e9d5ff]' : 'text-rose-400'}`}>
                                         {trade.isLong ? 'LONG' : 'SHORT'}
                                     </span>
                                     
@@ -836,7 +862,7 @@
                             style={{ left: hoverPos.x, top: hoverPos.y }}
                         >
                             <div className="flex justify-between items-center border-b border-slate-700/80 pb-2 mb-3">
-                                <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded shadow-inner ${hoveredTrade.isLong ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-500/30' : 'bg-rose-900/60 text-rose-300 border border-rose-500/30'}`}>
+                                <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded shadow-inner ${hoveredTrade.isLong ? 'bg-[#e9d5ff]/20 text-[#e9d5ff] border border-[#e9d5ff]/30' : 'bg-rose-900/60 text-rose-300 border border-rose-500/30'}`}>
                                     {hoveredTrade.isLong ? 'LONG 15M' : 'SHORT 15M'}
                                 </span>
                                 <span className={`text-xs font-black ${hoveredTrade.pnl > 0 ? 'text-emerald-400 drop-shadow-[0_0_5px_rgba(52,211,153,0.8)]' : hoveredTrade.pnl < 0 ? 'text-rose-400 drop-shadow-[0_0_5px_rgba(225,29,72,0.8)]' : 'text-amber-400 animate-pulse'}`}>
@@ -926,7 +952,6 @@
                 pauses: []
             });
 
-            // ОБНОВЛЕННАЯ СТАТИСТИКА (Только качественные сделки)
             const monthlyStats = useMemo(() => {
                 const thirtyDaysAgo = (Date.now() / 1000) - (30 * 24 * 3600);
                 const recentTrades = tradesHistory.filter(t => t.closeTime >= thirtyDaysAgo && t.status === 'CLOSED');
@@ -955,7 +980,7 @@
                 if (s.count < 5) return { text: "Сбор данных для анализа...", style: "text-slate-400 border-slate-500/30 bg-slate-900/40", icon: <InfoIcon size={20} className="text-slate-400" /> };
                 
                 if (s.profitFactor < 1) {
-                    return { text: "Отрицательное ожидание. Система сфокусирована на фильтрации шума и поиске точных входов.", style: "text-rose-400 border-rose-500/50 bg-rose-900/40", icon: <AlertTriangle size={20} /> };
+                    return { text: "Отрицательное ожидание. Включены защитные алгоритмы реверса.", style: "text-rose-400 border-rose-500/50 bg-rose-900/40", icon: <AlertTriangle size={20} /> };
                 }
 
                 if (s.profitFactor >= 2) {
@@ -1123,11 +1148,11 @@
                     timeScale: { timeVisible: true, borderVisible: false, rightOffset: 20 }, rightPriceScale: { borderVisible: false }
                 });
 
-                // ЯРКИЕ, КОНТРАСТНЫЕ СВЕЧИ
+                // ЯРКИЕ, ЧЕТКИЕ И КОНТРАСТНЫЕ СВЕЧИ (СВЕТЛО-СИРЕНЕВЫЙ И ТЕМНО-ФИОЛЕТОВЫЙ)
                 candleSeries.current = chart.addCandlestickSeries({ 
-                    upColor: '#10b981', downColor: '#ef4444', borderVisible: true, 
-                    borderUpColor: '#10b981', borderDownColor: '#ef4444', 
-                    wickUpColor: '#10b981', wickDownColor: '#ef4444' 
+                    upColor: '#e9d5ff', downColor: '#7e22ce', borderVisible: true, 
+                    borderUpColor: '#e9d5ff', borderDownColor: '#7e22ce', 
+                    wickUpColor: '#e9d5ff', wickDownColor: '#7e22ce' 
                 });
                 chartInstance.current = chart;
 
@@ -1150,7 +1175,7 @@
                 if (!candleSeries.current || !trade) return;
                 
                 try {
-                    const entryLine = candleSeries.current.createPriceLine({ price: trade.entryPrice, color: trade.isLong ? '#10b981' : '#ef4444', lineWidth: 2, lineStyle: 0, title: 'ENTRY' });
+                    const entryLine = candleSeries.current.createPriceLine({ price: trade.entryPrice, color: trade.isLong ? '#e9d5ff' : '#7e22ce', lineWidth: 2, lineStyle: 0, title: 'ENTRY' });
                     
                     let slColor = trade.isPartialClosed ? '#f59e0b' : '#e11d48'; 
                     let slTitle = trade.isPartialClosed ? 'TRAIL SL' : 'STOP LOSS';
@@ -1231,7 +1256,8 @@
                             entryPrice: sig.entryPrice, slPrice: sig.slPrice, level1R: sig.level1R, levelTarget: sig.levelTarget, R_value: sig.R_value,
                             startTime: sig.signalTime, score: sig.score, pattern: sig.signalType,
                             stakeAmount: riskAmount, logicalIndex: i, 
-                            isPartialClosed: false, trailingSL: sig.slPrice, targetPercent: sig.targetPercent, decision: sig.decision
+                            isPartialClosed: false, trailingSL: sig.slPrice, targetPercent: sig.targetPercent, decision: sig.decision,
+                            isReverse: btEngineState.forcedDirection !== null
                         };
                         
                         let pnl = 0; let isPartialClosed = false; let trailingSL = trade.slPrice;
@@ -1376,14 +1402,15 @@
                                     btEngineState.securityPauseUntil = pEnd; 
                                     btEngineState.pauses.push({ startTime: closeTime, endTime: pEnd });
                                     btEngineState.consecutiveLosses = 0; 
-                                    btEngineState.focus1HMode = true; // Визуальный флаг фокуса на 1H после паузы
+                                    btEngineState.forcedDirection = null; // Сброс принудительного направления после паузы
+                                    btEngineState.focus1HMode = true; 
                                 }
                             } else {
                                 btEngineState.forcedDirection = null;
                                 btEngineState.consecutiveLosses = 0;
                             }
                         } else {
-                            // Мелкая победа сбрасывает серию убытков
+                            // Мелкая победа просто сбрасывает серию убытков (избегаем тильта)
                             btEngineState.forcedDirection = null;
                             btEngineState.consecutiveLosses = 0;
                         }
@@ -1405,7 +1432,7 @@
                 setAppState('PLAYBACK');
                 setAppPhase('ВИЗУАЛИЗАЦИЯ ИСТОРИИ СДЕЛОК...');
                 
-                // Мгновенное скрытие экрана загрузки через React состояние
+                // Экран загрузки скроется сам из-за смены appState
 
                 for(let trade of histTrades) { 
                     if (!engineActive.current) break;
@@ -1544,7 +1571,6 @@
                                 const distTop = z.upper - currentPrice.current;
                                 const distBot = currentPrice.current - z.lower;
                                 
-                                // Более широкая зона поиска
                                 if (distTop > -a * 1.5 && distTop < a * 3.5) {
                                     if (!updatedZone || updatedZone.type !== 'RESISTANCE') {
                                         updatedZone = { type: 'RESISTANCE', top: z.upper, bottom: z.upper - (a*0.5), time: freshData15M[freshData15M.length-1].time, atr: a };
@@ -1611,7 +1637,8 @@
                                         startTime: Date.now() / 1000, status: 'ACTIVE', score: liveSignal.score, pattern: liveSignal.signalType,
                                         isPartialClosed: false, trailingSL: liveSignal.slPrice,
                                         warnedTPApproach: false, slTimerStarted: false, stakeAmount: calculatedStake, pnl: 0, rPart1: -1, rPart2: -1,
-                                        targetPercent: liveSignal.targetPercent, decision: liveSignal.decision
+                                        targetPercent: liveSignal.targetPercent, decision: liveSignal.decision,
+                                        isReverse: isRecovery
                                     };
                                     
                                     setLiveTrade(newTrade);
@@ -1763,8 +1790,6 @@
                                 } else if (result.includes('WIN')) {
                                     enqueueSpeech(`Тейк профит достигнут. Прибыль составила ${activeT.pnl.toFixed(2)} долларов.`, `tp-announce-${activeT.id}`, 0);
                                     playSound('win');
-                                    engineStateRef.current.consecutiveLosses = 0;
-                                    engineStateRef.current.forcedDirection = null;
                                 } else if (result === 'LOSS') {
                                     playSound('loss');
                                     enqueueSpeech(`Сработал стоп лосс. Позиция закрыта. Это контролируемый риск.`, `sl-announce-${activeT.id}`, 0);
@@ -1777,6 +1802,7 @@
                                         engineStateRef.current.securityPauseUntil = pEnd; 
                                         setPausesHistory(prev => [...prev, { startTime: Math.floor(Date.now()/1000), endTime: pEnd }]);
                                         engineStateRef.current.consecutiveLosses = 0; 
+                                        engineStateRef.current.forcedDirection = null; 
                                         engineStateRef.current.focus1HMode = true;
                                         enqueueSpeech(`Два убытка подряд. Активирована пауза безопасности на 30 минут. Поиск переведен на старший таймфрейм.`, `sec-pause-${activeT.id}`, 0);
                                     } else {
@@ -1980,7 +2006,20 @@
 
                             <div className={`flex-1 rounded-[2rem] overflow-hidden bg-[rgba(5,2,10,0.8)] border relative flex flex-col min-h-[350px] w-full transition-all duration-700 ${appState === 'ZONE_DETECTED' || appState === 'PREPARING' ? 'border-fuchsia-500 shadow-[0_0_50px_rgba(217,70,239,0.2)]' : 'border-purple-500/20 shadow-[inset_0_0_50px_rgba(0,0,0,0.8)]'}`}>
                                 
-                                <div className={`absolute top-5 left-5 z-20 bg-black/60 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 flex flex-col pointer-events-none transition-opacity ${appState === 'SCANNING' || appState === 'BACKTEST' ? 'opacity-0' : 'opacity-100'}`}>
+                                {appState === 'SCANNING' && (
+                                    <div className="chart-scanner-laser"></div>
+                                )}
+
+                                {appState === 'SCANNING' && <ScannerHUD data={chartDataForScanner} tf={currentTF} />}
+
+                                {appState === 'PREPARING' && prepCountdown !== null && (
+                                    <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center backdrop-blur-md">
+                                        <span className="text-base font-black text-fuchsia-400 tracking-[0.3em] uppercase mb-6 animate-pulse">Вход в позицию 15M через...</span>
+                                        <div className="text-8xl font-black text-white drop-shadow-[0_0_50px_rgba(217,70,239,1)] mono-font">{prepCountdown}</div>
+                                    </div>
+                                )}
+
+                                <div className={`absolute top-5 left-5 z-20 bg-black/60 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 flex flex-col pointer-events-none transition-opacity ${appState === 'BACKTEST' ? 'opacity-0' : 'opacity-100'}`}>
                                     <span className="text-xl font-black text-white oswald-font tracking-widest drop-shadow-md">BTC/USDT</span>
                                     <span className="text-sm text-fuchsia-300 font-mono font-bold mt-1">Price: {formatPrice(currentPrice.current)}</span>
                                 </div>
@@ -1999,13 +2038,6 @@
                                     currentPriceRef={currentPrice}
                                     pauses={pausesHistory}
                                 />
-
-                                {appState === 'PREPARING' && prepCountdown !== null && (
-                                    <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center backdrop-blur-md">
-                                        <span className="text-base font-black text-fuchsia-400 tracking-[0.3em] uppercase mb-6 animate-pulse">Вход в позицию 15M через...</span>
-                                        <div className="text-8xl font-black text-white drop-shadow-[0_0_50px_rgba(217,70,239,1)] mono-font">{prepCountdown}</div>
-                                    </div>
-                                )}
                             </div>
 
                             <div className="shrink-0">
@@ -2020,7 +2052,7 @@
                                 <div className="absolute top-0 right-0 p-2 opacity-20"><Activity size={60} /></div>
                                 <h3 className="text-[11px] font-black tracking-[0.15em] uppercase text-indigo-300 border-b border-indigo-500/20 pb-1.5 flex items-center justify-between">
                                     <span>Аналитика за 30 Дней</span>
-                                    {isRecoveryMode && <span className="px-1.5 py-0.5 bg-rose-600/20 text-rose-300 text-[8px] rounded border border-rose-500/30 animate-pulse">REVERSE</span>}
+                                    {isRecoveryMode && <span className="px-1.5 py-0.5 bg-amber-600/20 text-amber-300 text-[8px] rounded border border-amber-500/30 animate-pulse">REVERSE</span>}
                                 </h3>
                                 
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] font-mono relative z-10">
@@ -2063,7 +2095,10 @@
                                     <div className="flex flex-col gap-1.5 text-[11px] font-mono mt-1">
                                         <div className="flex justify-between items-center text-slate-300">
                                             <span>Направление:</span> 
-                                            <span className={`font-black uppercase px-2 py-0.5 rounded ${activeTrade.isLong ? 'bg-emerald-900/50 text-emerald-400' : 'bg-rose-900/50 text-rose-400'}`}>{activeTrade.type} 15M</span>
+                                            <div className="flex items-center gap-1">
+                                                <span className={`font-black uppercase px-2 py-0.5 rounded ${activeTrade.isLong ? 'bg-emerald-900/50 text-emerald-400' : 'bg-rose-900/50 text-rose-400'}`}>{activeTrade.type} 15M</span>
+                                                {activeTrade.isReverse && <span className="bg-amber-600/30 text-amber-400 px-1 py-0.5 rounded text-[8px]">REV</span>}
+                                            </div>
                                         </div>
                                         <div className="flex justify-between items-center text-slate-300">
                                             <span>Паттерн:</span> 
@@ -2104,7 +2139,8 @@
                                             <div className="flex justify-between items-center">
                                                 <div className="flex gap-2 items-center">
                                                     <span className={`text-[9px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded shadow-inner ${t.type === 'LONG' ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-500/20' : 'bg-rose-900/40 text-rose-400 border border-rose-500/20'}`}>{t.type}</span>
-                                                    <span className="text-[8px] text-slate-400 font-bold truncate max-w-[100px]" title={t.pattern}>{t.pattern}</span>
+                                                    {t.isReverse && <span className="bg-amber-600/30 text-amber-400 px-1 py-0.5 rounded text-[7px] font-black shadow-inner">REV</span>}
+                                                    <span className="text-[8px] text-slate-400 font-bold truncate max-w-[80px]" title={t.pattern}>{t.pattern}</span>
                                                 </div>
                                                 <div className="flex flex-col items-end">
                                                     <span className={`text-[11px] font-black ${t.pnl > 0 ? 'text-emerald-400' : 'text-rose-500'}`}>{t.pnl > 0 ? '+' : ''}{t.pnl?.toFixed(2)}$</span>
