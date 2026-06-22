@@ -125,6 +125,14 @@
             box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(255,255,255,0.2);
         }
 
+        .pause-glass-box {
+            background: linear-gradient(90deg, rgba(225, 29, 72, 0.1) 0%, rgba(159, 18, 57, 0.2) 50%, rgba(225, 29, 72, 0.1) 100%);
+            border-left: 1px dashed rgba(225, 29, 72, 0.6);
+            border-right: 1px dashed rgba(225, 29, 72, 0.6);
+            backdrop-filter: blur(2px);
+            z-index: 5;
+        }
+
         /* ТОНКИЕ МЕРЦАЮЩИЕ СТЕКЛЯННЫЕ ЗОНЫ */
         .glass-zone {
             backdrop-filter: blur(4px);
@@ -259,6 +267,7 @@
         };
         suppressResizeObserverErrors();
 
+        // Icons
         const Shield = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 4.81 17 6 19 6a1 1 0 0 1 1 1z"/></svg>);
         const Cpu = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>);
         const Activity = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>);
@@ -284,7 +293,7 @@
 
         // Константы
         const INITIAL_BALANCE = 5000;
-        const RISK_TIERS = [0.0075, 0.005, 0.0025]; 
+        const RISK_PERCENT = 0.0075; // Жестко фиксированный риск 0.75%
         const MAIN_TIMEFRAME = 'HYBRID 1H/15M (30D)';
         const MAX_DAILY_DD = 0.025; 
         const MIN_QUALITY_PROFIT = 0.75; // Жесткий порог качества (в процентах)
@@ -387,7 +396,19 @@
             return res;
         }
 
-        function evaluateSignalEngineHybrid(data15m, evalIdx, liqMap1H, atrMap1H, engineState) {
+        function calcTrendSeries(data, period = 20) {
+            let res = [];
+            for (let i = 0; i < data.length; i++) {
+                if (i < period) { res.push({time: data[i].time, trend: data[i].close >= data[i].open ? 1 : -1}); continue; }
+                let sum = 0;
+                for (let j = 0; j < period; j++) sum += data[i - j].close;
+                let sma = sum / period;
+                res.push({time: data[i].time, trend: data[i].close >= sma ? 1 : -1});
+            }
+            return res;
+        }
+
+        function evaluateSignalEngineHybrid(data15m, evalIdx, liqMap1H, atrMap1H, trendMap1H, engineState) {
             if (evalIdx < 20) return { valid: false, score: 0 };
 
             const curr15m = data15m[evalIdx];
@@ -397,17 +418,19 @@
             let t1H = curr15m.time - (curr15m.time % 3600);
             let zones = liqMap1H.get(t1H);
             let cAtr = atrMap1H.get(t1H);
+            let cTrend = trendMap1H.get(t1H);
             
-            if (!zones || !cAtr) {
+            if (!zones || !cAtr || cTrend === undefined) {
                 let latest1H = 0;
-                for (let t of liqMap1H.keys()) {
+                for (let t of trendMap1H.keys()) {
                     if (t <= curr15m.time && t > latest1H) latest1H = t;
                 }
                 zones = liqMap1H.get(latest1H);
                 cAtr = atrMap1H.get(latest1H);
+                cTrend = trendMap1H.get(latest1H);
             }
 
-            if (!zones || !cAtr) return { valid: false, score: 0 };
+            if (!zones || !cAtr || cTrend === undefined) return { valid: false, score: 0 };
 
             const cUpper = zones.upper;
             const cLower = zones.lower;
@@ -458,14 +481,25 @@
             if (isBearFVG && isBearish) shortConfluence += 15;
             if (isBullFVG && isBullish) longConfluence += 15;
 
+            // 1H Trend Alignment Bonus
+            if (cTrend === 1) longConfluence += 15;
+            if (cTrend === -1) shortConfluence += 15;
+
+            // Strict Filter: 15M signal MUST match 1H trend unless forced by reverse logic
+            if (!engineState.forcedDirection) {
+                if (cTrend === -1) longConfluence = 0; 
+                if (cTrend === 1) shortConfluence = 0; 
+            }
+
             let isLong = false; let isShort = false; let patternName = ''; let finalScore = 0;
 
-            if (shortConfluence >= 70 && engineState.forcedDirection !== 'LONG') {
+            // Increased minimum score to 75
+            if (shortConfluence >= 75 && engineState.forcedDirection !== 'LONG') {
                 isShort = true; finalScore = shortConfluence;
                 if (isBearishRejection) patternName = 'LIQUIDITY SWEEP';
                 else if (isBearFVG) patternName = 'ORDER BLOCK + FVG';
                 else patternName = 'ZONE RETEST + BOS';
-            } else if (longConfluence >= 70 && engineState.forcedDirection !== 'SHORT') {
+            } else if (longConfluence >= 75 && engineState.forcedDirection !== 'SHORT') {
                 isLong = true; finalScore = longConfluence;
                 if (isBullishRejection) patternName = 'LIQUIDITY SWEEP';
                 else if (isBullFVG) patternName = 'ORDER BLOCK + FVG';
@@ -479,7 +513,7 @@
             
             const slDistancePercent = Math.abs(entryPrice - rawSlPrice) / entryPrice * 100;
             
-            // Если стоп-лосс слишком далеко, то для профита >= 0.75% потребуется плохой RR. Отсеиваем слишком широкие входы.
+            // Если стоп-лосс слишком далеко, то для профита >= 0.75% потребуется плохой RR. Отсеиваем.
             if (slDistancePercent > 1.3) return { valid: false, score: 0 }; 
             
             let slPrice = rawSlPrice;
@@ -487,12 +521,13 @@
             
             const riskDist = Math.abs(entryPrice - slPrice);
             
-            // НОВАЯ ЛОГИКА: МИНИМАЛЬНЫЙ ПРОФИТ ОТ 1.0% ДО 1.3% ДЛЯ ГАРАНТИИ КАЧЕСТВА
+            // Целевые таргеты 1.0% и 1.3%
             const decision = finalScore >= 85 ? 'TRAIL' : 'FIXED';
             const targetPercentValue = decision === 'TRAIL' ? 1.3 : 1.0; 
             const tpDist = entryPrice * (targetPercentValue / 100);
             const levelTarget = isLong ? entryPrice + tpDist : entryPrice - tpDist;
             
+            // Уровень для частичной фиксации 50% (+1R)
             const level1R = isLong ? entryPrice + riskDist : entryPrice - riskDist;
 
             return { 
@@ -623,7 +658,7 @@
                         if (!trade) { box.style.display = 'none'; return; }
 
                         const isTradeActive = trade.status === 'ACTIVE';
-                        // ЖЕСТКИЙ ФИЛЬТР: мелкие сделки не рендерятся вообще (они не передаются сюда из массива, но на всякий случай)
+                        // ЖЕСТКИЙ ФИЛЬТР: мелкие сделки не рендерятся вообще
                         if (!isTradeActive && trade.isSmallWin) {
                             box.style.display = 'none'; return;
                         }
@@ -767,7 +802,7 @@
                             pricePercent = trade.effectivePricePercent ? trade.effectivePricePercent.toFixed(2) : '0.00';
                         }
 
-                        // Логика цвета бокса (только для Loss, HighQuality или Active)
+                        // Логика цвета бокса
                         const boxClass = isActive ? 'bg-purple-500/20 border-purple-400/50 border-dashed animate-pulse' :
                             isLoss ? 'bg-gradient-to-b from-rose-950/70 to-rose-900/40 border border-rose-700/80 shadow-[0_0_15px_rgba(225,29,72,0.3)]' :
                             'bg-gradient-to-b from-emerald-900/40 to-emerald-800/20 border border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.2)]';
@@ -909,7 +944,6 @@
             const [prepCountdown, setPrepCountdown] = useState(null);
             const [slCountdown, setSlCountdown] = useState(null); 
             
-            const [currentStake, setCurrentStake] = useState(INITIAL_BALANCE * RISK_TIERS[0]);
             const [metrics, setMetrics] = useState({ strength: 88, acc: 95, vol: 70, liq: 65 });
             const [newsData, setNewsData] = useState([]);
             const [currentNews, setCurrentNews] = useState('СИНХРОНИЗАЦИЯ НОВОСТНЫХ ПОТОКОВ...');
@@ -940,6 +974,7 @@
                 consecutiveLosses: 0,
                 securityPauseUntil: 0,
                 forcedDirection: null,
+                focus1HMode: false,
                 dailyStartBalance: INITIAL_BALANCE,
                 pauses: []
             });
@@ -951,7 +986,6 @@
                 
                 let qualityWins = 0, qualityPnL = 0;
                 let grossLoss = 0, lossCount = 0;
-                let smallWins = 0;
 
                 recentTrades.forEach(t => {
                     if (t.pnl > 0 && t.isHighQuality) {
@@ -962,8 +996,6 @@
                     }
                 });
 
-                // Все игнорированные (скрытые) сделки мы сюда не пускали, поэтому smallWins всегда 0 из истории.
-                // Для честного винрейта используем только реальные качественные победы и стопы
                 const relevantCount = qualityWins + lossCount;
                 const winrate = relevantCount > 0 ? ((qualityWins / relevantCount) * 100).toFixed(1) : 0;
                 const profitFactor = grossLoss === 0 ? (qualityPnL > 0 ? 99 : 0) : (qualityPnL / grossLoss);
@@ -1174,7 +1206,7 @@
                 if (engineActive.current) return; engineActive.current = true;
                 
                 setAppState('BACKTEST');
-                setAppPhase('БЭКТЕСТ ЗА 30 ДНЕЙ: ФИЛЬТРАЦИЯ И АНАЛИЗ...');
+                setAppPhase('БЭКТЕСТ ЗА 30 ДНЕЙ: СТРОГАЯ ФИЛЬТРАЦИЯ И АНАЛИЗ...');
                 
                 const fetchWithRetry = async (sym, cnt, int) => {
                     while(engineActive.current) {
@@ -1201,29 +1233,33 @@
 
                 const liq1H = calcLiquidityZones(data1h, 30);
                 const atr1H = calcATRSeries(data1h, 14);
+                const trend1H = calcTrendSeries(data1h, 20);
+
                 const lMap1H = new Map(liq1H.map(i => [i.time, {upper: i.upper, lower: i.lower}]));
                 const aMap1H = new Map(atr1H.map(i => [i.time, i.value]));
+                const tMap1H = new Map(trend1H.map(i => [i.time, i.trend]));
 
                 let histTrades = []; 
                 let simBalance = propBalanceRef.current;
                 let simPeak = simBalance;
                 
                 const startIdx = Math.max(50, data15m.length - 2880); 
-                let btEngineState = { forcedDirection: null, consecutiveLosses: 0, securityPauseUntil: 0, pauses: [] };
+                let btEngineState = { forcedDirection: null, consecutiveLosses: 0, securityPauseUntil: 0, pauses: [], focus1HMode: false };
                 let ignoredSmallWins = 0;
 
                 for (let i = startIdx; i < data15m.length - 2; i++) {
                     if (i % 50 === 0) await sleep(10);
                     
-                    // Блокировка во время паузы безопасности
                     if (data15m[i].time < btEngineState.securityPauseUntil) continue;
+                    
+                    if (btEngineState.focus1HMode && data15m[i].time > btEngineState.securityPauseUntil) {
+                        btEngineState.focus1HMode = false;
+                    }
 
-                    const sig = evaluateSignalEngineHybrid(data15m, i, lMap1H, aMap1H, btEngineState);
+                    const sig = evaluateSignalEngineHybrid(data15m, i, lMap1H, aMap1H, tMap1H, btEngineState);
                     
                     if (sig.valid) {
-                        const currentRiskIndex = Math.min(btEngineState.consecutiveLosses, 2);
-                        const currentRiskPercent = RISK_TIERS[currentRiskIndex];
-                        const riskAmount = simBalance * currentRiskPercent;
+                        const riskAmount = simBalance * RISK_PERCENT; // ФИКСИРОВАННЫЙ РИСК
                         
                         let trade = {
                             id: `hist_${sig.signalTime}`, tf: '15M', isLong: sig.isLong, type: sig.isLong ? 'LONG' : 'SHORT',
@@ -1243,31 +1279,25 @@
 
                             if (trade.isLong) {
                                 if (c.low <= trailingSL) {
-                                    closePrice = trailingSL;
-                                    closeTime = c.time;
+                                    closePrice = trailingSL; closeTime = c.time;
                                     if (!isPartialClosed) {
-                                        pnl = -riskAmount; 
-                                        result = 'LOSS';
+                                        pnl = -riskAmount; result = 'LOSS';
                                         rPart1 = -1; rPart2 = -1;
                                     } else {
                                         let p2R = (trailingSL - trade.entryPrice) / trade.R_value;
-                                        rPart2 = p2R;
-                                        pnl = ((riskAmount/2) * rPart1) + ((riskAmount/2) * p2R); 
+                                        rPart2 = p2R; pnl = ((riskAmount/2) * rPart1) + ((riskAmount/2) * p2R); 
                                         result = 'WIN (TRAILED)';
                                     }
                                     break;
                                 }
 
                                 if (c.high >= trade.levelTarget) {
-                                    closePrice = trade.levelTarget;
-                                    closeTime = c.time;
+                                    closePrice = trade.levelTarget; closeTime = c.time;
                                     let finalR = Math.abs(trade.levelTarget - trade.entryPrice) / trade.R_value;
                                     if (!isPartialClosed) {
-                                        pnl = riskAmount * finalR;
-                                        rPart1 = finalR; rPart2 = finalR;
+                                        pnl = riskAmount * finalR; rPart1 = finalR; rPart2 = finalR;
                                     } else {
-                                        rPart2 = finalR;
-                                        pnl = ((riskAmount/2) * rPart1) + ((riskAmount/2) * finalR);
+                                        rPart2 = finalR; pnl = ((riskAmount/2) * rPart1) + ((riskAmount/2) * finalR);
                                     }
                                     result = trade.decision === 'FIXED' ? 'WIN (FIXED)' : 'WIN (TARGET)';
                                     break;
@@ -1286,31 +1316,25 @@
 
                             } else { 
                                 if (c.high >= trailingSL) {
-                                    closePrice = trailingSL;
-                                    closeTime = c.time;
+                                    closePrice = trailingSL; closeTime = c.time;
                                     if (!isPartialClosed) {
-                                        pnl = -riskAmount;
-                                        result = 'LOSS';
+                                        pnl = -riskAmount; result = 'LOSS';
                                         rPart1 = -1; rPart2 = -1;
                                     } else {
                                         let p2R = (trade.entryPrice - trailingSL) / trade.R_value;
-                                        rPart2 = p2R;
-                                        pnl = ((riskAmount/2) * rPart1) + ((riskAmount/2) * p2R);
+                                        rPart2 = p2R; pnl = ((riskAmount/2) * rPart1) + ((riskAmount/2) * p2R);
                                         result = 'WIN (TRAILED)';
                                     }
                                     break;
                                 }
 
                                 if (c.low <= trade.levelTarget) {
-                                    closePrice = trade.levelTarget;
-                                    closeTime = c.time;
+                                    closePrice = trade.levelTarget; closeTime = c.time;
                                     let finalR = Math.abs(trade.entryPrice - trade.levelTarget) / trade.R_value;
                                     if (!isPartialClosed) {
-                                        pnl = riskAmount * finalR;
-                                        rPart1 = finalR; rPart2 = finalR;
+                                        pnl = riskAmount * finalR; rPart1 = finalR; rPart2 = finalR;
                                     } else {
-                                        rPart2 = finalR;
-                                        pnl = ((riskAmount/2) * rPart1) + ((riskAmount/2) * finalR);
+                                        rPart2 = finalR; pnl = ((riskAmount/2) * rPart1) + ((riskAmount/2) * finalR);
                                     }
                                     result = trade.decision === 'FIXED' ? 'WIN (FIXED)' : 'WIN (TARGET)';
                                     break;
@@ -1335,11 +1359,9 @@
                                 let finalR = finalDiff / trade.R_value;
                                 
                                 if (!isPartialClosed) {
-                                    pnl = remainingRisk * finalR;
-                                    rPart1 = finalR; rPart2 = finalR;
+                                    pnl = remainingRisk * finalR; rPart1 = finalR; rPart2 = finalR;
                                 } else {
-                                    rPart2 = finalR;
-                                    pnl = ((riskAmount/2) * rPart1) + (remainingRisk * finalR);
+                                    rPart2 = finalR; pnl = ((riskAmount/2) * rPart1) + (remainingRisk * finalR);
                                 }
                                 result = pnl > 0 ? (isPartialClosed ? 'WIN (TRAILED)' : 'WIN (FIXED)') : 'LOSS';
                             }
@@ -1355,7 +1377,7 @@
                         trade.closePrice = closePrice;
                         trade.isPartialClosed = isPartialClosed;
                         
-                        // РАСЧЕТ КАЧЕСТВА СДЕЛКИ (ПРОЦЕНТ ПРОФИТА ОТ ЦЕНЫ >= 0.75%)
+                        // РАСЧЕТ КАЧЕСТВА СДЕЛКИ
                         const riskPriceDist = Math.abs(trade.entryPrice - trade.slPrice);
                         const rRealized = trade.realizedR;
                         const avgExitPrice = trade.isLong ? trade.entryPrice + (rRealized * riskPriceDist) : trade.entryPrice - (rRealized * riskPriceDist);
@@ -1367,8 +1389,7 @@
                         let isIgnored = false;
                         if (trade.isSmallWin) {
                             isIgnored = true;
-                            pnl = 0; // Игнорируем в бэктесте
-                            trade.pnl = 0;
+                            trade.pnl = 0; // Игнорируем влияние на баланс
                             ignoredSmallWins++;
                         }
 
@@ -1382,20 +1403,24 @@
 
                             if (result === 'LOSS') {
                                 btEngineState.consecutiveLosses += 1;
+                                btEngineState.forcedDirection = trade.isLong ? 'SHORT' : 'LONG';
+
                                 if (btEngineState.consecutiveLosses >= 2) {
                                     // 2 ЛОССА ПОДРЯД = ПАУЗА 30 МИНУТ
-                                    btEngineState.securityPauseUntil = closeTime + 1800; 
-                                    btEngineState.pauses.push({ startTime: closeTime, endTime: closeTime + 1800 });
-                                    btEngineState.forcedDirection = null;
+                                    const pEnd = closeTime + 1800;
+                                    btEngineState.securityPauseUntil = pEnd; 
+                                    btEngineState.pauses.push({ startTime: closeTime, endTime: pEnd });
                                     btEngineState.consecutiveLosses = 0; 
-                                } else {
-                                    // 1 ЛОСС = РЕВЕРС
-                                    btEngineState.forcedDirection = trade.isLong ? 'SHORT' : 'LONG';
+                                    btEngineState.focus1HMode = true; // Визуальный флаг фокуса на 1H после паузы
                                 }
                             } else {
                                 btEngineState.forcedDirection = null;
                                 btEngineState.consecutiveLosses = 0;
                             }
+                        } else {
+                            // Мелкая победа сбрасывает серию убытков
+                            btEngineState.forcedDirection = null;
+                            btEngineState.consecutiveLosses = 0;
                         }
                         
                         i += 4; 
@@ -1412,7 +1437,6 @@
                 setPropBalance(simBalance); 
                 setTotalPnL(simBalance - INITIAL_BALANCE);
 
-                // --- ПОСЛЕДОВАТЕЛЬНОСТЬ ПРОВОДКИ И ПРОСМОТРА СДЕЛОК ---
                 setAppState('PLAYBACK');
                 setAppPhase('ВИЗУАЛИЗАЦИЯ ИСТОРИИ СДЕЛОК...');
                 await sleep(500); 
@@ -1436,7 +1460,6 @@
                     if (t.pnl > 0) qualityCount++; else losses++;
                 });
                 
-                // ОЗВУЧКА СОГЛАСНО НОВЫМ ПРАВИЛАМ
                 enqueueSpeech(`Завершен анализ за 30 дней. Качественных успешных сделок: ${qualityCount}. Убыточных: ${losses}. Система безопасности активировалась ${pausesCount} раз. Мелких сделок, которые были проигнорированы: ${ignoredSmallWins}. Итоговый результат: ${pnlDollars > 0 ? 'плюс' : 'минус'} ${Math.abs(Math.round(pnlDollars))} долларов.`, 'bt-stats', 0);
                 
                 const winningTrades = histTrades.filter(t => t.pnl > 0);
@@ -1472,9 +1495,7 @@
                 while (engineActive.current) {
                     try {
                         const nowSec = Math.floor(Date.now() / 1000);
-                        const currentRiskIndex = Math.min(engineStateRef.current.consecutiveLosses, 2);
-                        const currentRiskPercent = RISK_TIERS[currentRiskIndex];
-                        const calculatedStake = propBalanceRef.current * currentRiskPercent;
+                        const calculatedStake = propBalanceRef.current * RISK_PERCENT; // Фиксированный риск
                         setCurrentStake(calculatedStake);
 
                         const dailyDD = (engineStateRef.current.dailyStartBalance - propBalanceRef.current) / engineStateRef.current.dailyStartBalance;
@@ -1483,6 +1504,7 @@
                             setAppPhase(`ДОСТИГНУТ ЛИМИТ ПРОСАДКИ ЗА ДЕНЬ (2.5%)`);
                             setZoneInfo(null); currentZoneRef.current = null;
                             setCurrentTF('SYSTEM LOCKED');
+                            enqueueSpeech('Достигнут дневной лимит потерь. Торговля заблокирована до конца сессии.', 'daily-limit', 3600000);
                             await sleep(60000);
                             continue;
                         }
@@ -1494,6 +1516,10 @@
                             setCurrentTF('SYSTEM PAUSE');
                             await sleep(5000);
                             continue;
+                        }
+
+                        if (engineStateRef.current.focus1HMode && nowSec > engineStateRef.current.securityPauseUntil) {
+                            engineStateRef.current.focus1HMode = false;
                         }
 
                         const ob = await ScannerAPIRealTime.getOrderBook('BTCUSDT', 10);
@@ -1521,7 +1547,7 @@
                         if (!activeT) {
                             if (!currentZoneRef.current && appState !== 'SCANNING') {
                                 setAppState('SCANNING');
-                                setCurrentTF('1H (ZONES) / 15M (SCAN)');
+                                setCurrentTF(engineStateRef.current.forcedDirection ? '1H RECOVERY FOCUS' : '1H (ZONES) / 15M (SCAN)');
                                 setAppPhase(engineStateRef.current.forcedDirection ? `СКАНИРОВАНИЕ 15M (ОЖИДАНИЕ ${engineStateRef.current.forcedDirection})` : `ГЛУБОКОЕ СКАНИРОВАНИЕ 15M...`);
                             }
 
@@ -1533,8 +1559,11 @@
 
                             const freshLiq1H = calcLiquidityZones(freshData1H, 30);
                             const freshAtr1H = calcATRSeries(freshData1H, 14);
+                            const freshTrend1H = calcTrendSeries(freshData1H, 20);
+
                             const lMap1H = new Map(freshLiq1H.map(i => [i.time, {upper: i.upper, lower: i.lower}]));
                             const aMap1H = new Map(freshAtr1H.map(i => [i.time, i.value]));
+                            const tMap1H = new Map(freshTrend1H.map(i => [i.time, i.trend]));
 
                             const evalIdx = freshData15M.length - 2; 
                             const evalCandleTime = freshData15M[evalIdx].time;
@@ -1582,13 +1611,13 @@
                                     setAppPhase('ЦЕНА В ЗОНЕ 1H. ИЩУ 15M ПАТТЕРН...');
                                 } else {
                                     setAppState('SCANNING');
-                                    setCurrentTF('1H (ZONES) / 15M (SCAN)');
+                                    setCurrentTF(engineStateRef.current.forcedDirection ? '1H RECOVERY FOCUS' : '1H (ZONES) / 15M (SCAN)');
                                     setAppPhase(engineStateRef.current.forcedDirection ? `СКАНИРОВАНИЕ 15M (ОЖИДАНИЕ ${engineStateRef.current.forcedDirection})` : `ГЛУБОКОЕ СКАНИРОВАНИЕ 15M...`);
                                 }
                             }
 
                             if (evalCandleTime > lastEvaluatedCandleTime) {
-                                liveSignal = evaluateSignalEngineHybrid(freshData15M, evalIdx, lMap1H, aMap1H, engineStateRef.current);
+                                liveSignal = evaluateSignalEngineHybrid(freshData15M, evalIdx, lMap1H, aMap1H, tMap1H, engineStateRef.current);
                                 
                                 if (liveSignal && liveSignal.valid) {
                                     lastEvaluatedCandleTime = evalCandleTime; 
@@ -1599,10 +1628,10 @@
                                     playSound('signal');
                                     setAppPhase(`СИГНАЛ: ${liveSignal.signalType}`);
 
-                                    const isRecovery = engineStateRef.current.consecutiveLosses > 0;
+                                    const isRecovery = engineStateRef.current.forcedDirection !== null;
                                     const prepMsg = isRecovery ? 
-                                        `Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Реверсная позиция. Включен режим контроля убытков.` : 
-                                        `Слияние таймфреймов успешно. Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Условия ${liveSignal.decision === 'TRAIL' ? 'благоприятные. Трейлинг активирован.' : 'средние. Поиск фиксированной качественной цели.'}`;
+                                        `Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Реверсная позиция активна. Включен режим контроля убытков.` : 
+                                        `Слияние таймфреймов успешно. Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Условия благоприятные. Трейлинг до 1.3 процента активирован.`;
                                     
                                     enqueueSpeech(prepMsg, 'prep-sig', 0);
 
@@ -1767,23 +1796,21 @@
                                 } else if (result.includes('WIN')) {
                                     enqueueSpeech(`Тейк профит достигнут. Прибыль составила ${activeT.pnl.toFixed(2)} долларов.`, `tp-announce-${activeT.id}`, 0);
                                     playSound('win');
-                                    engineStateRef.current.consecutiveLosses = 0;
-                                    engineStateRef.current.forcedDirection = null;
                                 } else if (result === 'LOSS') {
                                     playSound('loss');
                                     enqueueSpeech(`Сработал стоп лосс. Позиция закрыта. Это контролируемый риск.`, `sl-announce-${activeT.id}`, 0);
                                     
                                     engineStateRef.current.consecutiveLosses += 1;
+                                    engineStateRef.current.forcedDirection = activeT.isLong ? 'SHORT' : 'LONG';
+
                                     if (engineStateRef.current.consecutiveLosses >= 2) {
                                         const pEnd = Math.floor(Date.now()/1000) + 1800;
                                         engineStateRef.current.securityPauseUntil = pEnd; 
-                                        engineStateRef.current.forcedDirection = null; 
-                                        engineStateRef.current.consecutiveLosses = 0; 
-                                        
                                         setPausesHistory(prev => [...prev, { startTime: Math.floor(Date.now()/1000), endTime: pEnd }]);
-                                        enqueueSpeech(`Зафиксировано два убытка подряд. Активирована пауза безопасности на 30 минут.`, `sec-pause-${activeT.id}`, 0);
+                                        engineStateRef.current.consecutiveLosses = 0; 
+                                        engineStateRef.current.focus1HMode = true; // Смена UI фокуса
+                                        enqueueSpeech(`Два убытка подряд. Активирована пауза безопасности на 30 минут. Поиск переведен на старший таймфрейм.`, `sec-pause-${activeT.id}`, 0);
                                     } else {
-                                        engineStateRef.current.forcedDirection = activeT.isLong ? 'SHORT' : 'LONG';
                                         enqueueSpeech(`Включен реверсный режим. Следующий поиск строго в противоположную сторону.`, `reverse-${activeT.id}`, 0);
                                     }
                                 }
@@ -1791,6 +1818,9 @@
                                 if (!isIgnored) {
                                     updateBalance(activeT.pnl);
                                     updateTradeHistory([activeT, ...tradesHistoryRef.current].slice(0, 100)); 
+                                } else {
+                                    engineStateRef.current.consecutiveLosses = 0;
+                                    engineStateRef.current.forcedDirection = null;
                                 }
 
                                 setLiveTrade(null);
@@ -1846,10 +1876,7 @@
                 );
             }
 
-            const currentRiskIndex = Math.min(engineStateRef.current.consecutiveLosses, 2);
-            const currentRiskStr = (RISK_TIERS[currentRiskIndex] * 100).toFixed(2) + '%';
-            const isRecoveryMode = currentRiskIndex > 0;
-
+            const isRecoveryMode = engineStateRef.current.forcedDirection !== null;
             let recBorder = 'border-emerald-500/50'; let recBg = 'bg-emerald-900/20'; let recText = 'text-emerald-400';
             if (monthlyStats.profitFactor < 1) { recBorder = 'border-rose-500/50'; recBg = 'bg-rose-900/20'; recText = 'text-rose-400'; }
 
@@ -1990,7 +2017,7 @@
                                     </div>
                                     <div className="flex flex-col items-center">
                                         <span className="text-[10px] font-black text-purple-300/70 tracking-[0.2em] uppercase mb-1">Active Timeframe</span>
-                                        <div className="px-5 py-1.5 bg-gradient-to-r from-purple-900 to-indigo-900 border border-purple-400/50 text-[11px] font-black rounded-lg shadow-[0_0_15px_rgba(168,85,247,0.4)] text-white">
+                                        <div className={`px-5 py-1.5 bg-gradient-to-r ${engineStateRef.current.focus1HMode ? 'from-amber-600 to-rose-700 animate-pulse' : 'from-purple-900 to-indigo-900'} border border-purple-400/50 text-[11px] font-black rounded-lg shadow-[0_0_15px_rgba(168,85,247,0.4)] text-white transition-colors`}>
                                             {currentTF}
                                         </div>
                                     </div>
@@ -2052,14 +2079,14 @@
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] font-mono relative z-10">
                                     <div className="flex justify-between text-slate-400 col-span-2 bg-black/40 p-1.5 rounded border border-white/5">
                                         <span>Текущий риск:</span> 
-                                        <span className={`${isRecoveryMode ? 'text-rose-400 drop-shadow-[0_0_5px_rgba(244,63,94,0.5)]' : 'text-emerald-400'} font-black`}>
-                                            {currentRiskStr}
+                                        <span className="text-emerald-400 font-black">
+                                            0.75% (ФИКС)
                                         </span>
                                     </div>
                                     <div className="flex justify-between text-slate-400"><span>Винрейт (CQ):</span> <span className="text-fuchsia-400 font-black">{monthlyStats.winrate}%</span></div>
                                     <div className="flex justify-between text-slate-400"><span>Качественные (≥0.75%):</span> <span className="text-emerald-400 font-black">{monthlyStats.qualityWins}</span></div>
-                                    <div className="flex justify-between text-slate-400"><span>Пауз Безопасности:</span> <span className="text-rose-400 font-black">{pausesHistory.length}</span></div>
                                     <div className="flex justify-between text-slate-400"><span>Убыточные (SL):</span> <span className="text-rose-400 font-black">{monthlyStats.lossCount}</span></div>
+                                    <div className="flex justify-between text-slate-400"><span>Пауз Безопасности:</span> <span className="text-rose-400 font-black">{pausesHistory.length}</span></div>
                                     
                                     <div className="flex justify-between text-slate-400 col-span-2 border-t border-indigo-500/20 pt-1.5 mt-1">
                                         <span className="font-bold text-white">Общий 30D PnL:</span> 
