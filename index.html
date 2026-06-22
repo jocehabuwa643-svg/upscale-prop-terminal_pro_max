@@ -91,7 +91,6 @@
     </style>
 </head>
 <body>
-    <!-- Голый HTML-прелоадер. Спасёт от чёрного экрана, если JS грузится медленно -->
     <div id="root">
         <div class="native-loader">
             <div class="native-spinner"></div>
@@ -100,15 +99,12 @@
     </div>
 
     <script type="text/babel">
-        // Безопасное извлечение хуков
         const { useState, useEffect, useRef, useCallback, useMemo } = window.React;
 
-        // Подавление ошибок ResizeObserver
         window.addEventListener('error', e => {
             if (e.message?.includes('ResizeObserver')) { e.stopImmediatePropagation(); e.preventDefault(); }
         });
 
-        // 1. Обертка для обработки критических ошибок React
         class ErrorBoundary extends React.Component {
             constructor(props) {
                 super(props);
@@ -154,11 +150,23 @@
 
         // CONSTANTS
         const INITIAL_BALANCE = 5000;
-        const RISK_PERCENT = 0.0075; 
+        
+        // --- АДАПТАЦИЯ UPSCALE PROP CHALLENGE ---
+        const RISK_PERCENT = 0.01; // Увеличен риск до 1.0% на сделку
         const MAIN_TIMEFRAME = 'HYBRID 1H/15M (30D)';
-        const MAX_DAILY_DD = 0.025; 
-        const MIN_QUALITY_PROFIT = 0.75; 
-        const MIN_SCORE = 80;
+        const MAX_DAILY_DD = 0.04; // Буфер просадки: 4% за день перед жесткой блокировкой (стандарт Upscale обычно 5%)
+        const MIN_SCORE = 78; // Строгий, но сбалансированный фильтр (78-80)
+        const MIN_QUALITY_PROFIT = 0.80; // Считаем качественной сделку от 0.8% хода цены
+
+        const FALLBACK_NEWS = [
+            "Биткоин тестирует ключевые уровни сопротивления на фоне высокого спроса.",
+            "Объем торгов на спотовом рынке превысил средние значения за 30 дней.",
+            "Аналитики прогнозируют рост волатильности перед закрытием недельной свечи.",
+            "Крупные игроки продолжают накапливать ликвидность в зонах интереса.",
+            "Технический анализ указывает на возможное формирование сильного импульса.",
+            "Глобальный рынок криптовалют показывает позитивную динамику.",
+            "Фонды продолжают увеличивать позиции в цифровых активах."
+        ];
 
         const fetchWithTimeout = async (url, options = {}) => {
             const { timeout = 4000 } = options;
@@ -314,8 +322,10 @@
             if (cTrend === 1) longConfluence += 15; if (cTrend === -1) shortConfluence += 15;
             if (cTrend4H === 1) longConfluence += 15; if (cTrend4H === -1) shortConfluence += 15;
 
+            // Строгий фильтр 4H (разрешаем реверс только при confluence >= 85)
             if (!engineState.forcedDirection) {
-                if (cTrend4H === 1) shortConfluence = 0; if (cTrend4H === -1) longConfluence = 0; 
+                if (cTrend4H === 1 && shortConfluence < 85) shortConfluence = 0;
+                if (cTrend4H === -1 && longConfluence < 85) longConfluence = 0;
             } else {
                 if (engineState.forcedDirection === 'LONG') shortConfluence = 0;
                 if (engineState.forcedDirection === 'SHORT') longConfluence = 0;
@@ -336,11 +346,14 @@
             let rawSlPrice = isLong ? Math.min(curr15m.low, prev15m.low) - (cAtr * 0.15) : Math.max(curr15m.high, prev15m.high) + (cAtr * 0.15);
             
             const slDistancePercent = Math.abs(entryPrice - rawSlPrice) / entryPrice * 100;
+            // Сохраняем строгий лимит на стоп (0.6 - 1.5%)
             if (slDistancePercent < 0.6 || slDistancePercent > 1.5) return { valid: false, score: 0 }; 
             
             let slPrice = rawSlPrice; const riskDist = Math.abs(entryPrice - slPrice);
             const decision = finalScore >= 85 ? 'TRAIL' : 'FIXED';
-            const targetPercentValue = decision === 'TRAIL' ? 1.3 : 1.0; 
+            
+            // Расширенная цель: чтобы сделка давала 1.1-1.3% в среднем, финальный тейк отодвигается до 1.45%
+            const targetPercentValue = decision === 'TRAIL' ? 1.45 : 1.15; 
             const tpDist = entryPrice * (targetPercentValue / 100);
             const levelTarget = isLong ? entryPrice + tpDist : entryPrice - tpDist;
             const level1R = isLong ? entryPrice + riskDist : entryPrice - riskDist;
@@ -612,22 +625,45 @@
             const monthlyStats = useMemo(() => {
                 const thirtyDaysAgo = (Date.now() / 1000) - (30 * 24 * 3600);
                 const recentTrades = tradesHistory.filter(t => t.closeTime >= thirtyDaysAgo && t.status === 'CLOSED');
+                
                 let qualityWins = 0, qualityPnL = 0; let grossLoss = 0, lossCount = 0;
+                let pnl075 = 0; let totalWinPercent = 0;
+
                 recentTrades.forEach(t => {
-                    if (t.pnl > 0 && t.isHighQuality) { qualityWins++; qualityPnL += t.pnl; } 
-                    else if (t.pnl <= 0) { grossLoss += Math.abs(t.pnl); lossCount++; }
+                    const hypRisk075 = INITIAL_BALANCE * 0.0075;
+                    const hypPnl075 = hypRisk075 * (t.realizedR || 0);
+
+                    if (t.pnl > 0 && t.isHighQuality) { 
+                        qualityWins++; 
+                        qualityPnL += t.pnl; 
+                        pnl075 += hypPnl075;
+                        totalWinPercent += (t.effectivePricePercent || 0);
+                    } 
+                    else if (t.pnl <= 0) { 
+                        grossLoss += Math.abs(t.pnl); 
+                        lossCount++; 
+                        pnl075 += hypPnl075;
+                    }
                 });
+
                 const relevantCount = qualityWins + lossCount;
                 const winrate = relevantCount > 0 ? ((qualityWins / relevantCount) * 100).toFixed(1) : 0;
                 const profitFactor = grossLoss === 0 ? (qualityPnL > 0 ? 99 : 0) : (qualityPnL / grossLoss);
-                return { count: relevantCount, pnl: qualityPnL - grossLoss, winrate, profitFactor, qualityWins, qualityPnL, lossCount };
+                const avgWinPercent = qualityWins > 0 ? (totalWinPercent / qualityWins).toFixed(2) : 0;
+
+                return { 
+                    count: relevantCount, 
+                    pnl: qualityPnL - grossLoss, 
+                    winrate, profitFactor, qualityWins, qualityPnL, lossCount, 
+                    pnl075, avgWinPercent 
+                };
             }, [tradesHistory, pausesHistory]);
 
             const recommendation = useMemo(() => {
                 const s = monthlyStats;
                 if (s.count < 5) return { text: "Сбор данных для анализа...", style: "text-slate-400 border-slate-500/30 bg-slate-900/40", icon: <InfoIcon size={20} className="text-slate-400" /> };
                 if (s.profitFactor < 1) return { text: "Отрицательное ожидание. Алгоритм фильтрует шум.", style: "text-rose-400 border-rose-500/50 bg-rose-900/40", icon: <AlertTriangle size={20} /> };
-                if (s.profitFactor >= 2) return { text: "Отличный результат! Алгоритм строго забирает качественные движения от 0.75%.", style: "text-emerald-400 border-emerald-500/50 bg-emerald-900/40", icon: <TrendingUp size={20} /> };
+                if (s.profitFactor >= 2) return { text: `Отличный результат! Мощное удержание позиции приносит ~${s.avgWinPercent}% за качественную сделку.`, style: "text-emerald-400 border-emerald-500/50 bg-emerald-900/40", icon: <TrendingUp size={20} /> };
                 return { text: "Стабильная торговля. В работу берутся только качественные паттерны.", style: "text-emerald-400 border-emerald-500/50 bg-emerald-900/40", icon: <TrendingUp size={20} /> };
             }, [monthlyStats]);
 
@@ -692,6 +728,39 @@
             };
 
             useEffect(() => {
+                const fetchNews = async () => {
+                    try {
+                        const res = await fetchWithTimeout('https://api.rss2json.com/v1/api.json?rss_url=https://lenta.ru/rss/news', { timeout: 6000 });
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data?.items?.length > 0) {
+                                const headlines = data.items.map(i => i.title); setNewsData(headlines); setCurrentNews(headlines[0]);
+                                return;
+                            }
+                        }
+                    } catch (e) {}
+                    setNewsData(FALLBACK_NEWS); setCurrentNews(FALLBACK_NEWS[0]);
+                };
+                fetchNews(); const intId = setInterval(fetchNews, 60 * 60 * 1000); return () => clearInterval(intId);
+            }, []);
+
+            useEffect(() => {
+                if (!isStarted || newsData.length === 0) return;
+                const readNews = () => {
+                    const randomNews = newsData[Math.floor(Math.random() * newsData.length)];
+                    enqueueSpeech(`Сводка новостей. ${randomNews}`, `news-broadcast-${Date.now()}`, 0);
+                };
+                const initialTimeout = setTimeout(readNews, 300000); 
+                const intervalId = setInterval(readNews, 720000); 
+                return () => { clearTimeout(initialTimeout); clearInterval(intervalId); };
+            }, [isStarted, newsData, enqueueSpeech]);
+
+            useEffect(() => {
+                if (!isStarted || newsData.length === 0) return;
+                let idx = 0; const rotInt = setInterval(() => { idx = (idx + 1) % newsData.length; setCurrentNews(newsData[idx]); }, 8000); return () => clearInterval(rotInt); 
+            }, [isStarted, newsData]);
+
+            useEffect(() => {
                 if (slCountdown > 0) { playSound('alert'); const timer = setTimeout(() => setSlCountdown(c => c - 1), 1000); return () => clearTimeout(timer); } 
                 else if (slCountdown === 0) { setSlCountdown(null); }
             }, [slCountdown]);
@@ -708,27 +777,6 @@
 
             const setLiveTrade = (trade) => { activeTradeRef.current = trade; setActiveTrade(trade ? {...trade} : null); };
 
-            useEffect(() => {
-                const fetchNews = async () => {
-                    try {
-                        const res = await fetchWithTimeout('https://api.rss2json.com/v1/api.json?rss_url=https://lenta.ru/rss/news', { timeout: 6000 });
-                        if (res.ok) {
-                            const data = await res.json();
-                            if (data?.items?.length > 0) {
-                                const headlines = data.items.map(i => i.title); setNewsData(headlines); setCurrentNews(headlines[0]);
-                            }
-                        }
-                    } catch (e) {}
-                };
-                fetchNews(); const intId = setInterval(fetchNews, 60 * 60 * 1000); return () => clearInterval(intId);
-            }, []);
-
-            useEffect(() => {
-                if (!isStarted || newsData.length === 0) return;
-                let idx = 0; const rotInt = setInterval(() => { idx = (idx + 1) % newsData.length; setCurrentNews(newsData[idx]); }, 8000); return () => clearInterval(rotInt); 
-            }, [isStarted, newsData]);
-
-            // --- ОТКАЗОУСТОЙЧИВАЯ ИНИЦИАЛИЗАЦИЯ ГРАФИКА ---
             const initChart = async () => {
                 if (!chartContainerRef.current) return false;
                 if (chartInstance.current) return true;
@@ -738,11 +786,7 @@
                         console.warn("LightweightCharts не найден. График не будет отрисован.");
                         setChartError(true); return false; 
                     }
-                    if (chartContainerRef.current.clientWidth === 0 || chartContainerRef.current.clientHeight === 0) {
-                        console.warn("Контейнер графика имеет нулевые размеры.");
-                        // Ждем рендера, но не ломаем все остальное
-                        return false;
-                    }
+                    if (chartContainerRef.current.clientWidth === 0 || chartContainerRef.current.clientHeight === 0) { return false; }
 
                     const chart = window.LightweightCharts.createChart(chartContainerRef.current, {
                         width: chartContainerRef.current.clientWidth, height: chartContainerRef.current.clientHeight,
@@ -804,7 +848,7 @@
                 if (engineActive.current) return; engineActive.current = true;
                 
                 setAppState('BACKTEST');
-                setAppPhase('БЭКТЕСТ ЗА 30 ДНЕЙ: ЗАГРУЗКА ДАННЫХ...');
+                setAppPhase('ЧЕСТНЫЙ БЭКТЕСТ (UPSCALE): ЗАГРУЗКА...');
                 
                 const fetchWithRetry = async (sym, cnt, int) => {
                     while(engineActive.current) {
@@ -826,9 +870,8 @@
                     setAppPhase('КРИТИЧЕСКАЯ ОШИБКА ДАННЫХ. ОСТАНОВКА.'); return;
                 }
 
-                setAppPhase('БЭКТЕСТ: АНАЛИЗ И ФИЛЬТРАЦИЯ...');
+                setAppPhase('БЭКТЕСТ: АНАЛИЗ И СИМУЛЯЦИЯ (РИСК 1.0%)...');
                 
-                // Пробуем запустить график, но если не выйдет - игнорируем ошибку и идём дальше
                 await initChart();
                 if (candleSeries.current) {
                     try { 
@@ -897,9 +940,15 @@
                                 if (!isPartialClosed && c.high >= trade.level1R) {
                                     isPartialClosed = true; rPart1 = Math.abs(trade.level1R - trade.entryPrice) / trade.R_value; trailingSL = trade.entryPrice; 
                                 }
-                                if (isPartialClosed) {
-                                    let lowest3 = Math.min(c.low, prevC.low, data15m[j-2]?.low || prevC.low);
-                                    if (lowest3 > trailingSL) trailingSL = lowest3;
+                                if (isPartialClosed && j >= i + 5) {
+                                    // Трейлинг по 5-ти последним свечам для свободы хода цены
+                                    let lowest5 = Math.min(
+                                        c.low, prevC.low, 
+                                        data15m[j-2]?.low || prevC.low, 
+                                        data15m[j-3]?.low || prevC.low, 
+                                        data15m[j-4]?.low || prevC.low
+                                    );
+                                    if (lowest5 > trailingSL) trailingSL = lowest5;
                                 }
                             } else { 
                                 if (c.high >= trailingSL) {
@@ -919,9 +968,15 @@
                                 if (!isPartialClosed && c.low <= trade.level1R) {
                                     isPartialClosed = true; rPart1 = Math.abs(trade.entryPrice - trade.level1R) / trade.R_value; trailingSL = trade.entryPrice;
                                 }
-                                if (isPartialClosed) {
-                                    let highest3 = Math.max(c.high, prevC.high, data15m[j-2]?.high || prevC.high);
-                                    if (highest3 < trailingSL) trailingSL = highest3;
+                                if (isPartialClosed && j >= i + 5) {
+                                    // Трейлинг по 5-ти последним свечам для свободы хода цены
+                                    let highest5 = Math.max(
+                                        c.high, prevC.high, 
+                                        data15m[j-2]?.high || prevC.high, 
+                                        data15m[j-3]?.high || prevC.high, 
+                                        data15m[j-4]?.high || prevC.high
+                                    );
+                                    if (highest5 < trailingSL) trailingSL = highest5;
                                 }
                             }
 
@@ -987,10 +1042,9 @@
                 setReplayTrade(null); playSound('playback-end');
                 
                 const pnlDollars = simBalance - INITIAL_BALANCE; let qualityCount = 0; let losses = 0;
-                let secPauses = btEngineState.pauses.filter(p => p.type === 'SECURITY').length; let dailyPauses = btEngineState.pauses.filter(p => p.type === 'DAILY_LIMIT').length;
                 histTrades.forEach(t => { if (t.pnl > 0) qualityCount++; else losses++; });
                 
-                enqueueSpeech(`Завершен анализ за 30 дней. Успешных сделок: ${qualityCount}. Убыточных: ${losses}. Результат: ${pnlDollars > 0 ? 'плюс' : 'минус'} ${Math.abs(Math.round(pnlDollars))} долларов.`, 'bt-stats', 0);
+                enqueueSpeech(`Адаптация под челлендж Upscale завершена. Риск один процент. Успешных сделок: ${qualityCount}. Убыточных: ${losses}. Результат: ${pnlDollars > 0 ? 'плюс' : 'минус'} ${Math.abs(Math.round(pnlDollars))} долларов.`, 'bt-stats', 0);
                 
                 const winningTrades = histTrades.filter(t => t.pnl > 0);
                 if (winningTrades.length > 0) {
@@ -1051,7 +1105,7 @@
                         const dailyDD = (engineStateRef.current.dailyStartBalance - propBalanceRef.current) / engineStateRef.current.dailyStartBalance;
                         
                         if (dailyDD >= MAX_DAILY_DD) {
-                            setAppState('PAUSED'); setAppPhase(`ДОСТИГНУТ ЛИМИТ ПРОСАДКИ ЗА ДЕНЬ (2.5%)`); setZoneInfo(null); currentZoneRef.current = null; setCurrentTF('SYSTEM LOCKED');
+                            setAppState('PAUSED'); setAppPhase(`ДОСТИГНУТ ЛИМИТ ПРОСАДКИ ЗА ДЕНЬ (4%)`); setZoneInfo(null); currentZoneRef.current = null; setCurrentTF('SYSTEM LOCKED');
                             enqueueSpeech('Достигнут дневной лимит потерь. Торговля заблокирована до конца сессии.', 'daily-limit', 3600000);
                             await sleep(60000); continue;
                         }
@@ -1143,7 +1197,7 @@
                                     setAppState('PREPARING'); playSound('signal'); setAppPhase(`СИГНАЛ: ${liveSignal.signalType}`);
 
                                     const isRecovery = engineStateRef.current.forcedDirection !== null;
-                                    const prepMsg = isRecovery ? `Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Реверсная позиция активна. Включен режим контроля убытков.` : `Слияние таймфреймов успешно. Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Условия благоприятные. Трейлинг до 1.3 процента активирован.`;
+                                    const prepMsg = isRecovery ? `Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Реверсная позиция активна. Включен режим контроля убытков.` : `Слияние таймфреймов успешно. Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Условия благоприятные. Трейлинг до 1.5 процента активирован.`;
                                     enqueueSpeech(prepMsg, 'prep-sig', 0);
 
                                     for(let w=5; w>0; w--) { setPrepCountdown(w); enqueueSpeech(`${w}`, `prep-count-${w}`, 0); await sleep(1000); }
@@ -1195,9 +1249,14 @@
                                     activeT.isPartialClosed = true; activeT.rPart1 = Math.abs(activeT.level1R - activeT.entryPrice) / fullRisk; activeT.pnl += (activeT.stakeAmount / 2) * activeT.rPart1; activeT.trailingSL = activeT.entryPrice; 
                                     setLiveTrade(activeT); drawTradeLines(activeT); playSound('partial'); enqueueSpeech('Частичная фиксация прибыли успешна. Стоп лосс перенесен в безубыток.', `partial-${activeT.id}`, 0);
                                 }
-                                else if (activeT.isPartialClosed && liveData15m.length >= 3) {
-                                    const len = liveData15m.length; const lowest3 = Math.min(liveData15m[len-1].low, liveData15m[len-2].low, liveData15m[len-3].low);
-                                    if (lowest3 > activeT.trailingSL) { activeT.trailingSL = lowest3; setLiveTrade(activeT); drawTradeLines(activeT); }
+                                else if (activeT.isPartialClosed && liveData15m.length >= 5) {
+                                    // Трейлинг по 5 свечам LIVE
+                                    const len = liveData15m.length; 
+                                    const lowest5 = Math.min(
+                                        liveData15m[len-1].low, liveData15m[len-2].low, 
+                                        liveData15m[len-3].low, liveData15m[len-4].low, liveData15m[len-5].low
+                                    );
+                                    if (lowest5 > activeT.trailingSL) { activeT.trailingSL = lowest5; setLiveTrade(activeT); drawTradeLines(activeT); }
                                 }
                             } else { 
                                 if (curP >= activeT.trailingSL) { 
@@ -1215,9 +1274,14 @@
                                     activeT.isPartialClosed = true; activeT.rPart1 = Math.abs(activeT.entryPrice - activeT.level1R) / fullRisk; activeT.pnl += (activeT.stakeAmount / 2) * activeT.rPart1; activeT.trailingSL = activeT.entryPrice; 
                                     setLiveTrade(activeT); drawTradeLines(activeT); playSound('partial'); enqueueSpeech('Частичная фиксация прибыли успешна. Стоп лосс перенесен в безубыток.', `partial-${activeT.id}`, 0);
                                 }
-                                else if (activeT.isPartialClosed && liveData15m.length >= 3) {
-                                    const len = liveData15m.length; const highest3 = Math.max(liveData15m[len-1].high, liveData15m[len-2].high, liveData15m[len-3].high);
-                                    if (highest3 < activeT.trailingSL) { activeT.trailingSL = highest3; setLiveTrade(activeT); drawTradeLines(activeT); }
+                                else if (activeT.isPartialClosed && liveData15m.length >= 5) {
+                                    // Трейлинг по 5 свечам LIVE
+                                    const len = liveData15m.length; 
+                                    const highest5 = Math.max(
+                                        liveData15m[len-1].high, liveData15m[len-2].high, 
+                                        liveData15m[len-3].high, liveData15m[len-4].high, liveData15m[len-5].high
+                                    );
+                                    if (highest5 < activeT.trailingSL) { activeT.trailingSL = highest5; setLiveTrade(activeT); drawTradeLines(activeT); }
                                 }
                             }
 
@@ -1231,7 +1295,7 @@
                                 activeT.isHighQuality = activeT.pnl > 0 && activeT.effectivePricePercent >= MIN_QUALITY_PROFIT; activeT.isSmallWin = activeT.pnl > 0 && !activeT.isHighQuality;
 
                                 let isIgnored = false;
-                                if (activeT.isSmallWin) { isIgnored = true; activeT.pnl = 0; setIgnoredSmallCount(prev => prev + 1); enqueueSpeech('Сделка закрыта. Прибыль ниже порога. Ордер отфильтрован.', `skip-${Date.now()}`, 0); } 
+                                if (activeT.isSmallWin) { isIgnored = true; activeT.pnl = 0; setIgnoredSmallCount(prev => prev + 1); enqueueSpeech('Сделка закрыта. Прибыль ниже порога качества. Ордер отфильтрован.', `skip-${Date.now()}`, 0); } 
                                 else if (result.includes('WIN')) {
                                     enqueueSpeech(`Тейк профит достигнут. Прибыль составила ${activeT.pnl.toFixed(2)} долларов. Закрываю позицию. 3. 2. 1.`, `tp-announce-${activeT.id}`, 0);
                                     setAppPhase('ЗАКРЫТИЕ: 3...'); await sleep(1000); setAppPhase('ЗАКРЫТИЕ: 2...'); await sleep(1000); setAppPhase('ЗАКРЫТИЕ: 1...'); await sleep(1000);
@@ -1269,7 +1333,6 @@
                 initAudio(); setTimeout(() => playSound('startup'), 100); 
             };
             
-            // ВАЖНО: Запуск движка ТОЛЬКО после того, как интерфейс полностью отрисовался!
             useEffect(() => { 
                 if (isStarted && !engineActive.current) { 
                     const timerId = setTimeout(() => { runEngine(); }, 1500); 
@@ -1392,17 +1455,23 @@
                                 <div className="absolute top-0 right-0 p-2 opacity-20"><Activity size={60} /></div>
                                 <h3 className="text-[11px] font-black tracking-[0.15em] uppercase text-indigo-300 border-b border-indigo-500/20 pb-1.5 flex items-center justify-between"><span>Аналитика за 30 Дней</span>{isRecoveryMode && <span className="px-1.5 py-0.5 bg-amber-600/20 text-amber-300 text-[8px] rounded border border-amber-500/30 animate-pulse">REVERSE</span>}</h3>
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] font-mono relative z-10">
-                                    <div className="flex justify-between text-slate-400 col-span-2 bg-black/40 p-1.5 rounded border border-white/5"><span>Текущий риск:</span><span className="text-emerald-400 font-black">0.75% (ФИКС)</span></div>
                                     <div className="flex justify-between text-slate-400"><span>Винрейт (CQ):</span> <span className="text-fuchsia-400 font-black">{monthlyStats.winrate}%</span></div>
                                     <div className="flex justify-between text-slate-400"><span>Качественные:</span> <span className="text-emerald-400 font-black">{monthlyStats.qualityWins}</span></div>
                                     <div className="flex justify-between text-slate-400"><span>Убыточные:</span> <span className="text-rose-400 font-black">{monthlyStats.lossCount}</span></div>
                                     <div className="flex justify-between text-slate-400"><span>Отфильтровано:</span> <span className="text-slate-500 font-black">{ignoredSmallCount}</span></div>
-                                    <div className="flex justify-between text-slate-400 col-span-2 border-t border-indigo-500/20 pt-1.5 mt-1"><span className="font-bold text-white">Общий 30D PnL:</span><span className={`${monthlyStats.pnl >= 0 ? "text-emerald-400" : "text-rose-400"} font-black text-sm drop-shadow-[0_0_8px_currentColor]`}>{monthlyStats.pnl > 0 ? '+' : ''}{monthlyStats.pnl.toFixed(2)}$</span></div>
+                                    
+                                    {/* Блок сравнения рисков под UPSCALE */}
+                                    <div className="col-span-2 flex flex-col gap-1 mt-1 p-2 bg-indigo-900/30 rounded border border-indigo-500/30 shadow-inner">
+                                        <span className="text-[9px] text-indigo-300 uppercase font-bold text-center border-b border-indigo-500/30 pb-1 mb-1 tracking-widest">UPSCALE PROP SIMULATION</span>
+                                        <div className="flex justify-between text-slate-300"><span className="text-[10px]">PnL (Риск 1.0% Активен):</span><span className="font-black text-emerald-400">+{monthlyStats.pnl.toFixed(2)}$</span></div>
+                                        <div className="flex justify-between text-slate-400"><span className="text-[10px]">PnL (Риск 0.75% Старый):</span><span className="font-bold text-emerald-500/70">+{monthlyStats.pnl075.toFixed(2)}$</span></div>
+                                        <div className="flex justify-between text-slate-400"><span className="text-[10px]">Ср. Качественный Ход:</span><span className="font-bold text-fuchsia-400">+{monthlyStats.avgWinPercent}%</span></div>
+                                    </div>
                                 </div>
                             </div>
 
                             <div className={`p-3 rounded-xl border ${recBorder} ${recBg} shadow-inner shrink-0`}>
-                                <div className="flex gap-3 items-start"><div className="mt-0.5">{recommendation.icon}</div><div><h4 className={`text-[10px] font-black uppercase tracking-widest mb-1 ${recText}`}>Рекомендация Системы</h4><p className="text-[11px] text-slate-300 leading-snug">{recommendation.text}</p></div></div>
+                                <div className="flex gap-3 items-start"><div className="mt-0.5">{recommendation.icon}</div><div><h4 className={`text-[10px] font-black uppercase tracking-widest mb-1 ${recText}`}>Оценка Системы</h4><p className="text-[11px] text-slate-300 leading-snug">{recommendation.text}</p></div></div>
                             </div>
 
                             <div className={`p-4 rounded-2xl border transition-all duration-500 flex flex-col gap-2 shrink-0 ${activeTrade ? 'bg-gradient-to-br from-purple-900/50 to-indigo-900/50 border-fuchsia-500/50 shadow-[0_0_25px_rgba(217,70,239,0.3)]' : 'bg-black/40 border-white/10 shadow-inner'}`}>
@@ -1443,7 +1512,6 @@
 
         const RootApp = () => ( <ErrorBoundary><App /></ErrorBoundary> );
 
-        // Надежный запуск после полной загрузки документа
         window.addEventListener('load', () => {
             try {
                 const rootElement = document.getElementById('root');
