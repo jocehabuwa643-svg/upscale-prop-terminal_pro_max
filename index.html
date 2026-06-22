@@ -86,12 +86,6 @@
             border-radius: 1.5rem;
         }
 
-        .text-gradient {
-            background: linear-gradient(135deg, #d946ef, #e2e8f0, #a855f7);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
         .massive-broker-btn {
             background: linear-gradient(135deg, rgba(147, 51, 234, 0.7) 0%, rgba(79, 70, 229, 0.7) 50%, rgba(30, 27, 75, 0.8) 100%);
             backdrop-filter: blur(20px) saturate(150%);
@@ -133,6 +127,7 @@
             z-index: 5;
         }
 
+        /* ТОНКИЕ МЕРЦАЮЩИЕ СТЕКЛЯННЫЕ ЗОНЫ */
         .glass-zone {
             backdrop-filter: blur(4px);
             border-radius: 6px;
@@ -141,7 +136,7 @@
             transition: all 0.3s ease;
         }
         .gentle-pulse-anim {
-            animation: gentle-pulse 2s infinite alternate ease-in-out;
+            animation: gentle-pulse 2.5s infinite alternate ease-in-out;
         }
         @keyframes gentle-pulse {
             0% { opacity: 0.7; box-shadow: 0 0 15px currentColor; filter: brightness(1); }
@@ -164,10 +159,11 @@
             color: #6ee7b7; 
         }
 
+        /* 3D АНИМАЦИЯ ПИРАМИДЫ */
         .pyramid-container {
             perspective: 800px;
-            width: 140px;
-            height: 140px;
+            width: 160px;
+            height: 160px;
             position: relative;
             z-index: 10;
         }
@@ -175,20 +171,21 @@
             width: 100%;
             height: 100%;
             transform-style: preserve-3d;
-            animation: spin-pyramid-3d 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+            animation: spin-pyramid-3d 4s linear infinite;
             position: relative;
+            transform: rotateX(15deg);
         }
         @keyframes spin-pyramid-3d {
-            from { transform: rotateX(15deg) rotateY(0deg); }
-            to { transform: rotateX(15deg) rotateY(360deg); }
+            0% { transform: rotateX(15deg) rotateY(0deg); }
+            100% { transform: rotateX(15deg) rotateY(360deg); }
         }
         .pyramid-face {
             position: absolute;
-            top: 15px; left: 10px;
+            top: 20px; left: 20px;
             width: 0; height: 0;
             border-left: 60px solid transparent;
             border-right: 60px solid transparent;
-            border-bottom: 110px solid;
+            border-bottom: 120px solid;
             transform-origin: 50% 100%;
             opacity: 0.85;
             filter: drop-shadow(0 0 10px rgba(217, 70, 239, 0.5));
@@ -200,7 +197,7 @@
         .pyramid-eye {
             position: absolute; top: 60%; left: 50%;
             transform: translate(-50%, -50%) translateZ(40px);
-            font-size: 38px;
+            font-size: 40px;
             text-shadow: 0 0 25px rgba(255,255,255,1);
             animation: eye-pulse-3d 1.5s infinite alternate;
         }
@@ -220,6 +217,7 @@
         .pixel-pulse { animation: pixel-pulse 2s infinite alternate; }
         @keyframes pixel-pulse { 0% { opacity: 0.3; } 100% { opacity: 1; box-shadow: 0 0 8px currentColor; } }
         
+        /* Лазер сканирования на графике */
         .chart-scanner-laser {
             position: absolute;
             top: 0; bottom: 0;
@@ -316,11 +314,11 @@
         const InfoIcon = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>);
 
         const INITIAL_BALANCE = 5000;
-        const RISK_PERCENT = 0.0075; // Фиксированный риск 0.75%
+        const RISK_PERCENT = 0.0075; 
         const MAIN_TIMEFRAME = 'HYBRID 1H/15M (30D)';
-        const MAX_DAILY_DD = 0.025; 
+        const MAX_DAILY_LOSSES = 3; 
         const MIN_QUALITY_PROFIT = 0.75; 
-        const MIN_SCORE = 78;
+        const MIN_SCORE = 80; // Усиленный фильтр
 
         const fetchWithTimeout = async (url, options = {}) => {
             const { timeout = 4000 } = options;
@@ -462,7 +460,6 @@
             const distTop = cUpper - curr15m.close;
             const distBot = curr15m.close - cLower;
             
-            // Вход только вблизи зон
             const inResZone = distTop > -cAtr * 1.5 && distTop < cAtr * 3.5; 
             const inSupZone = distBot > -cAtr * 1.5 && distBot < cAtr * 3.5;
             
@@ -492,7 +489,7 @@
             let shortConfluence = 0;
             let longConfluence = 0;
 
-            if (inResZone) shortConfluence += 50; // Увеличен вес зоны
+            if (inResZone) shortConfluence += 50; 
             if (inSupZone) longConfluence += 50;
 
             if (hasVolume) { shortConfluence += 15; longConfluence += 15; }
@@ -506,13 +503,16 @@
             if (isBearFVG && isBearish) shortConfluence += 15;
             if (isBullFVG && isBullish) longConfluence += 15;
 
-            // СТРОГАЯ фильтрация по тренду 1H
+            if (cTrend === 1) longConfluence += 20;
+            if (cTrend === -1) shortConfluence += 20;
+
+            // СТРОГАЯ ФИЛЬТРАЦИЯ 1H (кроме принудительного реверса)
             if (!engineState.forcedDirection) {
-                if (cTrend === 1) { longConfluence += 20; shortConfluence = 0; }
-                if (cTrend === -1) { shortConfluence += 20; longConfluence = 0; }
+                if (cTrend === -1) longConfluence = 0; 
+                if (cTrend === 1) shortConfluence = 0; 
             } else {
-                if (engineState.forcedDirection === 'LONG') { longConfluence += 30; shortConfluence = 0; }
-                if (engineState.forcedDirection === 'SHORT') { shortConfluence += 30; longConfluence = 0; }
+                if (engineState.forcedDirection === 'LONG') shortConfluence = 0;
+                if (engineState.forcedDirection === 'SHORT') longConfluence = 0;
             }
 
             let isLong = false; let isShort = false; let patternName = ''; let finalScore = 0;
@@ -535,11 +535,11 @@
             let rawSlPrice = isLong ? Math.min(curr15m.low, prev15m.low) - (cAtr * 0.15) : Math.max(curr15m.high, prev15m.high) + (cAtr * 0.15);
             
             const slDistancePercent = Math.abs(entryPrice - rawSlPrice) / entryPrice * 100;
-            if (slDistancePercent > 1.3) return { valid: false, score: 0 }; 
+            
+            // ЖЕСТКИЙ ФИЛЬТР SL: минимум 0.6%, максимум 1.5%
+            if (slDistancePercent < 0.6 || slDistancePercent > 1.5) return { valid: false, score: 0 }; 
             
             let slPrice = rawSlPrice;
-            if (slDistancePercent < 0.2) slPrice = isLong ? entryPrice * 0.998 : entryPrice * 1.002; 
-            
             const riskDist = Math.abs(entryPrice - slPrice);
             
             const decision = finalScore >= 85 ? 'TRAIL' : 'FIXED';
@@ -602,6 +602,7 @@
             );
         });
 
+        // КОМПОНЕНТ ОТРИСОВКИ ГРАФИКА
         const ChartOverlays = window.React.memo(({ chart, series, trades, activeTrade, zoneInfo, isFocusMode, replayTrade, slCountdown, currentPriceRef, pauses }) => {
             const overlayRef = useRef(null);
             const [hoverPos, setHoverPos] = useState({x: 0, y: 0});
@@ -763,7 +764,6 @@
                         const isWin = trade.pnl > 0 || trade.result?.includes('WIN');
                         const isLoss = trade.result === 'LOSS';
                         const isActive = trade.status === 'ACTIVE';
-                        const isHighQuality = trade.isHighQuality || false;
                         
                         let pricePercent = '0.00';
                         if (isActive) {
@@ -818,25 +818,8 @@
                         );
                     })}
                     
-                    <div id="active-tp-zone" style={{display: 'none'}}>
-                        {activeTrade && !activeTrade.isPartialClosed && (
-                            <div className="text-white/90 font-black text-[9px] tracking-widest drop-shadow-md bg-black/60 px-3 py-1 rounded-lg backdrop-blur-md border border-white/20 flex flex-row gap-2 items-center shadow-[0_5px_15px_rgba(0,0,0,0.5)]">
-                                <span>TAKE PROFIT (+{activeTrade.targetPercent}%)</span>
-                                <span className="opacity-70">|</span>
-                                <span className="opacity-90">{activeTrade.levelTarget?.toFixed(2)}</span>
-                            </div>
-                        )}
-                    </div>
-                    
-                    <div id="active-sl-zone" className="glass-zone gentle-pulse-anim glass-zone-sl absolute z-[5] flex justify-center items-center overflow-hidden" style={{display: 'none'}}>
-                        {activeTrade && (
-                            <div className="text-white/90 font-black text-[9px] tracking-widest drop-shadow-md bg-black/60 px-3 py-1 rounded-lg backdrop-blur-md border border-white/20 flex flex-row gap-2 items-center shadow-[0_5px_15px_rgba(0,0,0,0.5)]">
-                                <span>{activeTrade.isPartialClosed ? 'TRAIL SL' : 'STOP LOSS'}</span>
-                                <span className="opacity-70">|</span>
-                                <span className="opacity-90">{(activeTrade.trailingSL || activeTrade.slPrice)?.toFixed(2)}</span>
-                            </div>
-                        )}
-                    </div>
+                    <div id="active-tp-zone" style={{display: 'none'}}></div>
+                    <div id="active-sl-zone" style={{display: 'none'}}></div>
 
                     {slCountdown !== null && slCountdown > 0 && (
                         <div className="absolute inset-0 flex items-center justify-center bg-rose-950/40 backdrop-blur-sm z-50 transition-all duration-300 pointer-events-none">
@@ -912,8 +895,9 @@
             const [metrics, setMetrics] = useState({ strength: 88, acc: 95, vol: 70, liq: 65 });
             const [newsData, setNewsData] = useState([]);
             const [currentNews, setCurrentNews] = useState('СИНХРОНИЗАЦИЯ НОВОСТНЫХ ПОТОКОВ...');
-            const [chartDataForScanner, setChartDataForScanner] = useState([]);
-            const [orderBook, setOrderBook] = useState(null);
+            
+            // Состояние для хранения отфильтрованных сделок (для озвучки)
+            const [ignoredCountState, setIgnoredCountState] = useState(0);
 
             const activeTradeRef = useRef(null);
             const tradesHistoryRef = useRef([]);
@@ -937,6 +921,8 @@
 
             const engineStateRef = useRef({
                 consecutiveLosses: 0,
+                dailyLosses: 0,
+                currentDay: 0,
                 securityPauseUntil: 0,
                 forcedDirection: null,
                 focus1HMode: false,
@@ -1106,23 +1092,6 @@
                 return () => clearInterval(rotInt); 
             }, [isStarted, newsData]);
 
-            useEffect(() => {
-                if (!isStarted || newsData.length === 0) return;
-                
-                const tryReadNews = () => {
-                    if (speechQueueRef.current.length === 0 && !isSpeakingRef.current) {
-                        const randomNewsIndex = Math.floor(Math.random() * newsData.length);
-                        const newsText = newsData[randomNewsIndex];
-                        enqueueSpeech(`Фоновая сводка новостей. ${newsText}`, `news-update`, 0);
-                    } else {
-                        setTimeout(tryReadNews, 30000);
-                    }
-                };
-
-                const newsReaderInterval = setInterval(tryReadNews, 15 * 60 * 1000); 
-                return () => clearInterval(newsReaderInterval);
-            }, [isStarted, newsData, enqueueSpeech]);
-
             const initChart = async () => {
                 if (!chartContainerRef.current) { setTimeout(initChart, 500); return; }
                 if (!window.LightweightCharts) {
@@ -1140,7 +1109,6 @@
                     timeScale: { timeVisible: true, borderVisible: false, rightOffset: 20 }, rightPriceScale: { borderVisible: false }
                 });
 
-                // ЯРКИЕ, ЧЕТКИЕ И КОНТРАСТНЫЕ СВЕЧИ (СВЕТЛО-СИРЕНЕВЫЙ И ТЕМНО-ФИОЛЕТОВЫЙ)
                 candleSeries.current = chart.addCandlestickSeries({ 
                     upColor: '#e9d5ff', downColor: '#7e22ce', borderVisible: true, 
                     borderUpColor: '#e9d5ff', borderDownColor: '#7e22ce', 
@@ -1226,15 +1194,22 @@
                 let simPeak = simBalance;
                 
                 const startIdx = Math.max(50, data15m.length - 2880); 
-                let btEngineState = { forcedDirection: null, consecutiveLosses: 0, securityPauseUntil: 0, pauses: [], focus1HMode: false };
+                let btEngineState = { forcedDirection: null, consecutiveLosses: 0, dailyLosses: 0, currentDay: 0, securityPauseUntil: 0, pauses: [], focus1HMode: false };
                 let ignoredSmallWins = 0;
 
                 for (let i = startIdx; i < data15m.length - 2; i++) {
                     if (i % 50 === 0) await sleep(1);
                     
-                    if (data15m[i].time < btEngineState.securityPauseUntil) continue;
+                    const tStamp = data15m[i].time;
+                    const cDay = Math.floor(tStamp / 86400);
+                    if (btEngineState.currentDay !== cDay) {
+                        btEngineState.currentDay = cDay;
+                        btEngineState.dailyLosses = 0; // Сброс дневных убытков
+                    }
+
+                    if (tStamp < btEngineState.securityPauseUntil) continue;
                     
-                    if (btEngineState.focus1HMode && data15m[i].time > btEngineState.securityPauseUntil) {
+                    if (btEngineState.focus1HMode && tStamp > btEngineState.securityPauseUntil) {
                         btEngineState.focus1HMode = false;
                     }
 
@@ -1385,24 +1360,35 @@
 
                             if (result === 'LOSS') {
                                 btEngineState.consecutiveLosses += 1;
-                                // 1 ЛОСС = СТРОГИЙ РЕВЕРС
+                                btEngineState.dailyLosses += 1;
                                 btEngineState.forcedDirection = trade.isLong ? 'SHORT' : 'LONG';
 
-                                if (btEngineState.consecutiveLosses >= 2) {
-                                    // 2 ЛОССА ПОДРЯД = ПАУЗА 30 МИНУТ
-                                    const pEnd = closeTime + 1800;
+                                if (btEngineState.dailyLosses >= 3) {
+                                    // Блокировка до следующего дня
+                                    const nextDayStart = (cDay + 1) * 86400;
+                                    btEngineState.securityPauseUntil = nextDayStart;
+                                    btEngineState.pauses.push({ startTime: closeTime, endTime: nextDayStart });
+                                    btEngineState.consecutiveLosses = 0; 
+                                    btEngineState.forcedDirection = null; 
+                                    btEngineState.focus1HMode = true; 
+                                } else if (btEngineState.consecutiveLosses >= 2) {
+                                    // 2 ЛОССА ПОДРЯД = ПАУЗА 1.5 ЧАСА
+                                    const pEnd = closeTime + 5400; // 90 минут
                                     btEngineState.securityPauseUntil = pEnd; 
                                     btEngineState.pauses.push({ startTime: closeTime, endTime: pEnd });
                                     btEngineState.consecutiveLosses = 0; 
                                     btEngineState.forcedDirection = null; 
-                                    btEngineState.focus1HMode = true; // Смена UI фокуса
+                                    btEngineState.focus1HMode = true; 
                                 }
+                            } else if (trade.isHighQuality && trade.effectivePricePercent >= 1.2) {
+                                // Сильный плюс - реверс
+                                btEngineState.forcedDirection = trade.isLong ? 'SHORT' : 'LONG';
+                                btEngineState.consecutiveLosses = 0;
                             } else {
                                 btEngineState.forcedDirection = null;
                                 btEngineState.consecutiveLosses = 0;
                             }
                         } else {
-                            // Мелкая победа сбрасывает серию убытков
                             btEngineState.forcedDirection = null;
                             btEngineState.consecutiveLosses = 0;
                         }
@@ -1413,6 +1399,7 @@
                 
                 updateTradeHistory([...histTrades].reverse());
                 setPausesHistory(btEngineState.pauses);
+                setIgnoredCountState(ignoredSmallWins);
                 
                 setGlobalMaxDD(maxDDRef.current);
                 propBalanceRef.current = simBalance;
@@ -1443,7 +1430,7 @@
                     if (t.pnl > 0) qualityCount++; else losses++;
                 });
                 
-                enqueueSpeech(`Завершен анализ за 30 дней. Качественных успешных сделок: ${qualityCount}. Убыточных: ${losses}. Система безопасности активировалась ${pausesCount} раз. Мелких сделок, которые были проигнорированы: ${ignoredSmallWins}. Итоговый результат: ${pnlDollars > 0 ? 'плюс' : 'минус'} ${Math.abs(Math.round(pnlDollars))} долларов.`, 'bt-stats', 0);
+                enqueueSpeech(`Завершен анализ за 30 дней. Качественных успешных сделок: ${qualityCount}. Убыточных: ${losses}. Система безопасности активировалась ${pausesCount} раз. Итоговый результат: ${pnlDollars > 0 ? 'плюс' : 'минус'} ${Math.abs(Math.round(pnlDollars))} долларов.`, 'bt-stats', 0);
                 
                 const winningTrades = histTrades.filter(t => t.pnl > 0);
                 if (winningTrades.length > 0) {
@@ -1460,9 +1447,9 @@
                     const tradeDate = new Date(randomStrongTrade.startTime * 1000);
                     const dateString = tradeDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
                     
-                    enqueueSpeech(`Краткий обзор одной из качественных сделок периода. Дата: ${dateString}. Направление: ${randomStrongTrade.type === 'LONG' ? 'Лонг' : 'Шорт'}. Движение цены составило ${randomStrongTrade.effectivePricePercent.toFixed(2)} процента.`, 'bt-best', 0);
+                    enqueueSpeech(`Обзор одной из сильных сделок периода. Дата: ${dateString}. Направление: ${randomStrongTrade.type === 'LONG' ? 'Лонг' : 'Шорт'}. Прибыль: ${randomStrongTrade.pnl.toFixed(2)} долларов.`, 'bt-best', 0);
                     
-                    await sleep(10000);
+                    await sleep(8000);
                     setBestTradeReview(null);
                 }
 
@@ -1478,6 +1465,12 @@
                 while (engineActive.current) {
                     try {
                         const nowSec = Math.floor(Date.now() / 1000);
+                        const cDay = Math.floor(nowSec / 86400);
+                        if (engineStateRef.current.currentDay !== cDay) {
+                            engineStateRef.current.currentDay = cDay;
+                            engineStateRef.current.dailyLosses = 0;
+                        }
+
                         const calculatedStake = propBalanceRef.current * RISK_PERCENT;
                         setCurrentStake(calculatedStake);
 
@@ -1538,7 +1531,8 @@
                             const freshData15M = await ScannerAPI.getCandles('BTCUSDT', 150, '15m');
                             
                             if (!freshData1H || !freshData15M || freshData15M.length < 50) { await sleep(2000); continue; }
-                            setChartDataForScanner(freshData15M);
+                            // setChartDataForScanner is useful for UI scan HUD
+                            if (appState === 'SCANNING') setChartDataForScanner(freshData15M);
 
                             const freshLiq1H = calcLiquidityZones(freshData1H, 30);
                             const freshAtr1H = calcATRSeries(freshData1H, 14);
@@ -1564,13 +1558,13 @@
                                 if (distTop > -a * 1.5 && distTop < a * 3.5) {
                                     if (!updatedZone || updatedZone.type !== 'RESISTANCE') {
                                         updatedZone = { type: 'RESISTANCE', top: z.upper, bottom: z.upper - (a*0.5), time: freshData15M[freshData15M.length-1].time, atr: a };
-                                        enqueueSpeech(`Цена подошла к зоне интересов. Ожидается шорт.`, `zone-res`, 90000);
+                                        enqueueSpeech(`Внимание. Цена подходит к зоне сопротивления старшего таймфрейма. Ожидайте сигнал в шорт.`, `zone-res`, 90000);
                                         playSound('zone');
                                     }
                                 } else if (distBot > -a * 1.5 && distBot < a * 3.5) {
                                     if (!updatedZone || updatedZone.type !== 'SUPPORT') {
                                         updatedZone = { type: 'SUPPORT', top: z.lower + (a*0.5), bottom: z.lower, time: freshData15M[freshData15M.length-1].time, atr: a };
-                                        enqueueSpeech(`Цена подошла к зоне интересов. Ожидается лонг.`, `zone-sup`, 90000);
+                                        enqueueSpeech(`Внимание. Цена подходит к зоне поддержки старшего таймфрейма. Ожидайте сигнал в лонг.`, `zone-sup`, 90000);
                                         playSound('zone');
                                     }
                                 }
@@ -1613,12 +1607,16 @@
 
                                     const isRecovery = engineStateRef.current.forcedDirection !== null;
                                     const prepMsg = isRecovery ? 
-                                        `Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Реверсная позиция активна. Включен режим контроля убытков.` : 
-                                        `Слияние таймфреймов успешно. Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Условия благоприятные. Трейлинг до 1.3 процента активирован.`;
+                                        `Реверсный сигнал сформирован. Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Подготовка входа.` : 
+                                        `Слияние таймфреймов подтверждено. Сделка ${liveSignal.isLong?'Лонг':'Шорт'}. Приоритет структурный трейлинг. Подготовка входа.`;
                                     
                                     enqueueSpeech(prepMsg, 'prep-sig', 0);
 
-                                    for(let w=3; w>0; w--) { setPrepCountdown(w); await sleep(1000); }
+                                    for(let w=5; w>0; w--) { 
+                                        setPrepCountdown(w);
+                                        enqueueSpeech(`${w}`, `prep-count-${w}`, 0);
+                                        await sleep(1000); 
+                                    }
                                     setPrepCountdown(null);
 
                                     const newTrade = {
@@ -1637,6 +1635,7 @@
                                     setAppState('ACTIVE_TRADE');
                                     setCurrentTF('15M (ACTIVE TRADE)');
                                     setAppPhase(`АКТИВНА СДЕЛКА: ${newTrade.type} 15M`);
+                                    enqueueSpeech(`Позиция открыта. Установлен стоп лосс и целевой тейк-профит.`, 'trade-open', 0);
                                 }
                             }
                         } 
@@ -1660,7 +1659,7 @@
                             if (distToSL < fullRisk * 0.25 && !activeT.slTimerStarted && !activeT.isPartialClosed) {
                                 activeT.slTimerStarted = true;
                                 setSlCountdown(5); 
-                                enqueueSpeech("Опасность ликвидации ордера. Приближаемся к стоп-лоссу.", `warn-sl-${activeT.id}`, 0);
+                                enqueueSpeech("Опасность. Приближаемся к стоп-лоссу.", `warn-sl-${activeT.id}`, 0);
                             }
 
                             const tpDistance = Math.abs(activeT.levelTarget - curP) / activeT.entryPrice * 100;
@@ -1673,13 +1672,11 @@
                                 if (curP <= activeT.trailingSL) { 
                                     closed = true; 
                                     if (!activeT.isPartialClosed) {
-                                        activeT.pnl = -activeT.stakeAmount;
-                                        result = 'LOSS';
+                                        activeT.pnl = -activeT.stakeAmount; result = 'LOSS';
                                         activeT.rPart1 = -1; activeT.rPart2 = -1;
                                     } else {
                                         let p2R = (activeT.trailingSL - activeT.entryPrice) / fullRisk;
-                                        activeT.rPart2 = p2R;
-                                        activeT.pnl += (activeT.stakeAmount / 2) * p2R;
+                                        activeT.rPart2 = p2R; activeT.pnl += (activeT.stakeAmount / 2) * p2R;
                                         result = 'WIN (TRAILED)';
                                     }
                                 }
@@ -1687,11 +1684,9 @@
                                     closed = true;
                                     let finalR = Math.abs(activeT.levelTarget - activeT.entryPrice) / fullRisk;
                                     if (!activeT.isPartialClosed) {
-                                        activeT.pnl = activeT.stakeAmount * finalR;
-                                        activeT.rPart1 = finalR; activeT.rPart2 = finalR;
+                                        activeT.pnl = activeT.stakeAmount * finalR; activeT.rPart1 = finalR; activeT.rPart2 = finalR;
                                     } else {
-                                        activeT.rPart2 = finalR;
-                                        activeT.pnl += (activeT.stakeAmount / 2) * finalR;
+                                        activeT.rPart2 = finalR; activeT.pnl += (activeT.stakeAmount / 2) * finalR;
                                     }
                                     result = activeT.decision === 'FIXED' ? 'WIN (FIXED)' : 'WIN (TARGET)';
                                 }
@@ -1717,13 +1712,11 @@
                                 if (curP >= activeT.trailingSL) { 
                                     closed = true; 
                                     if (!activeT.isPartialClosed) {
-                                        activeT.pnl = -activeT.stakeAmount;
-                                        result = 'LOSS';
+                                        activeT.pnl = -activeT.stakeAmount; result = 'LOSS';
                                         activeT.rPart1 = -1; activeT.rPart2 = -1;
                                     } else {
                                         let p2R = (activeT.entryPrice - activeT.trailingSL) / fullRisk;
-                                        activeT.rPart2 = p2R;
-                                        activeT.pnl += (activeT.stakeAmount / 2) * p2R;
+                                        activeT.rPart2 = p2R; activeT.pnl += (activeT.stakeAmount / 2) * p2R;
                                         result = 'WIN (TRAILED)';
                                     }
                                 }
@@ -1731,11 +1724,9 @@
                                     closed = true;
                                     let finalR = Math.abs(activeT.entryPrice - activeT.levelTarget) / fullRisk;
                                     if (!activeT.isPartialClosed) {
-                                        activeT.pnl = activeT.stakeAmount * finalR;
-                                        activeT.rPart1 = finalR; activeT.rPart2 = finalR;
+                                        activeT.pnl = activeT.stakeAmount * finalR; activeT.rPart1 = finalR; activeT.rPart2 = finalR;
                                     } else {
-                                        activeT.rPart2 = finalR;
-                                        activeT.pnl += (activeT.stakeAmount / 2) * finalR;
+                                        activeT.rPart2 = finalR; activeT.pnl += (activeT.stakeAmount / 2) * finalR;
                                     }
                                     result = activeT.decision === 'FIXED' ? 'WIN (FIXED)' : 'WIN (TARGET)';
                                 }
@@ -1775,32 +1766,57 @@
                                 let isIgnored = false;
                                 if (activeT.isSmallWin) {
                                     isIgnored = true;
-                                    activeT.pnl = 0;
+                                    activeT.pnl = 0; 
+                                    setIgnoredCountState(prev => prev + 1);
                                     enqueueSpeech('Сделка закрыта. Прибыль ниже минимального порога. Ордер отфильтрован из статистики.', `skip-${Date.now()}`, 0);
                                 } else if (result.includes('WIN')) {
-                                    enqueueSpeech(`Тейк профит достигнут. Прибыль составила ${activeT.pnl.toFixed(2)} долларов.`, `tp-announce-${activeT.id}`, 0);
+                                    // 3 SEC COUNTDOWN ON WIN
+                                    enqueueSpeech(`Тейк профит достигнут. Прибыль составила ${activeT.pnl.toFixed(2)} долларов. Закрываю позицию. 3. 2. 1.`, `tp-announce-${activeT.id}`, 0);
+                                    setAppPhase('ЗАКРЫТИЕ: 3...'); await sleep(1000);
+                                    setAppPhase('ЗАКРЫТИЕ: 2...'); await sleep(1000);
+                                    setAppPhase('ЗАКРЫТИЕ: 1...'); await sleep(1000);
                                     playSound('win');
                                 } else if (result === 'LOSS') {
                                     playSound('loss');
-                                    enqueueSpeech(`Сработал стоп лосс. Позиция закрыта. Это контролируемый риск.`, `sl-announce-${activeT.id}`, 0);
+                                    enqueueSpeech(`Сработал стоп лосс. Позиция закрыта. Не расстраивайтесь, это системный риск.`, `sl-announce-${activeT.id}`, 0);
                                     
                                     engineStateRef.current.consecutiveLosses += 1;
-                                    engineStateRef.current.forcedDirection = activeT.isLong ? 'SHORT' : 'LONG'; // РЕВЕРС
+                                    engineStateRef.current.dailyLosses += 1;
+                                    engineStateRef.current.forcedDirection = activeT.isLong ? 'SHORT' : 'LONG';
 
-                                    if (engineStateRef.current.consecutiveLosses >= 2) {
-                                        const pEnd = Math.floor(Date.now()/1000) + 1800;
-                                        engineStateRef.current.securityPauseUntil = pEnd; 
-                                        setPausesHistory(prev => [...prev, { startTime: Math.floor(Date.now()/1000), endTime: pEnd }]);
+                                    if (engineStateRef.current.dailyLosses >= 3) {
+                                        const nowStamp = Math.floor(Date.now()/1000);
+                                        const cDay = Math.floor(nowStamp / 86400);
+                                        const nextDayStart = (cDay + 1) * 86400;
+                                        engineStateRef.current.securityPauseUntil = nextDayStart; 
+                                        setPausesHistory(prev => [...prev, { startTime: nowStamp, endTime: nextDayStart }]);
                                         engineStateRef.current.consecutiveLosses = 0; 
                                         engineStateRef.current.forcedDirection = null; 
                                         engineStateRef.current.focus1HMode = true;
-                                        enqueueSpeech(`Два убытка подряд. Активирована пауза безопасности на 30 минут. Поиск переведен на старший таймфрейм.`, `sec-pause-${activeT.id}`, 0);
+                                        await sleep(2000);
+                                        enqueueSpeech(`Три убытка за день. Достигнут лимит. Торговля остановлена до следующего дня.`, `daily-pause-${activeT.id}`, 0);
+                                    } else if (engineStateRef.current.consecutiveLosses >= 2) {
+                                        const nowStamp = Math.floor(Date.now()/1000);
+                                        const pEnd = nowStamp + 5400; // 1.5 HOURS (90 min)
+                                        engineStateRef.current.securityPauseUntil = pEnd; 
+                                        setPausesHistory(prev => [...prev, { startTime: nowStamp, endTime: pEnd }]);
+                                        engineStateRef.current.consecutiveLosses = 0; 
+                                        engineStateRef.current.forcedDirection = null; 
+                                        engineStateRef.current.focus1HMode = true;
+                                        await sleep(2000);
+                                        enqueueSpeech(`Два убытка подряд. Активирована пауза безопасности на полтора часа. Поиск переведен на старший таймфрейм.`, `sec-pause-${activeT.id}`, 0);
                                     } else {
+                                        await sleep(2000);
                                         enqueueSpeech(`Включен реверсный режим. Следующий поиск строго в противоположную сторону.`, `reverse-${activeT.id}`, 0);
                                     }
                                 }
 
                                 if (!isIgnored) {
+                                    if (activeT.isHighQuality && activeT.effectivePricePercent >= 1.2) {
+                                        // Сильный плюс - ищем разворот с осторожностью
+                                        engineStateRef.current.forcedDirection = activeT.isLong ? 'SHORT' : 'LONG';
+                                        engineStateRef.current.consecutiveLosses = 0;
+                                    }
                                     updateBalance(activeT.pnl);
                                     updateTradeHistory([activeT, ...tradesHistoryRef.current].slice(0, 100)); 
                                 } else {
@@ -1901,7 +1917,7 @@
                             <div className="bg-rose-950/50 border border-rose-500/30 px-8 py-4 rounded-2xl mb-8">
                                 <h2 className="text-2xl md:text-3xl font-bold text-rose-300">ФОКУС: ЗАЩИТА БАЛАНСА</h2>
                             </div>
-                            <p className="text-xl text-slate-300 font-mono max-w-2xl leading-relaxed">Система зафиксировала серию убытков или лимит просадки. Алгоритмы сканирования приостановлены на 30 минут.</p>
+                            <p className="text-xl text-slate-300 font-mono max-w-2xl leading-relaxed">Система зафиксировала серию убытков или лимит просадки. Алгоритмы сканирования приостановлены.</p>
                         </div>
                     )}
 
@@ -1953,7 +1969,7 @@
                                         <div className="grid grid-cols-2 gap-4 w-full text-left bg-black/40 p-4 rounded-xl border border-white/10 shadow-inner">
                                             <div className="flex flex-col border-r border-white/10">
                                                 <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold">Направление</span>
-                                                <span className={`font-black text-base drop-shadow-md ${bestTradeReview.isLong ? 'text-emerald-400' : 'text-rose-400'}`}>{bestTradeReview.type} 15M</span>
+                                                <span className={`font-black text-base drop-shadow-md ${bestTradeReview.isLong ? 'text-[#e9d5ff]' : 'text-rose-400'}`}>{bestTradeReview.type} 15M</span>
                                             </div>
                                             <div className="flex flex-col pl-2">
                                                 <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold">Ход Цены</span>
@@ -1994,7 +2010,7 @@
                                 </div>
                             </div>
 
-                            <div className={`flex-1 rounded-[2rem] overflow-hidden bg-[rgba(5,2,10,0.8)] border relative flex flex-col min-h-[350px] w-full transition-all duration-700 ${appState === 'ZONE_DETECTED' || appState === 'PREPARING' ? 'border-fuchsia-500 shadow-[0_0_50px_rgba(217,70,239,0.2)]' : 'border-purple-500/20 shadow-[inset_0_0_50px_rgba(0,0,0,0.8)]'}`}>
+                            <div className={`flex-1 rounded-[2rem] overflow-hidden bg-[#030108] border relative flex flex-col min-h-[350px] w-full transition-all duration-700 ${appState === 'ZONE_DETECTED' || appState === 'PREPARING' ? 'border-fuchsia-500 shadow-[0_0_50px_rgba(217,70,239,0.2)]' : 'border-purple-500/20 shadow-[inset_0_0_50px_rgba(0,0,0,0.8)]'}`}>
                                 
                                 {appState === 'SCANNING' && (
                                     <div className="chart-scanner-laser"></div>
@@ -2086,7 +2102,7 @@
                                         <div className="flex justify-between items-center text-slate-300">
                                             <span>Направление:</span> 
                                             <div className="flex items-center gap-1">
-                                                <span className={`font-black uppercase px-2 py-0.5 rounded ${activeTrade.isLong ? 'bg-emerald-900/50 text-emerald-400' : 'bg-rose-900/50 text-rose-400'}`}>{activeTrade.type} 15M</span>
+                                                <span className={`font-black uppercase px-2 py-0.5 rounded ${activeTrade.isLong ? 'bg-[#e9d5ff]/20 text-[#e9d5ff]' : 'bg-rose-900/50 text-rose-400'}`}>{activeTrade.type} 15M</span>
                                                 {activeTrade.isReverse && <span className="bg-amber-600/30 text-amber-400 px-1 py-0.5 rounded text-[8px]">REV</span>}
                                             </div>
                                         </div>
