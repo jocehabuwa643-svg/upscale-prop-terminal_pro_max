@@ -129,11 +129,10 @@
             background: linear-gradient(90deg, rgba(225, 29, 72, 0.05) 0%, rgba(159, 18, 57, 0.15) 50%, rgba(225, 29, 72, 0.05) 100%);
             border-left: 1px dashed rgba(225, 29, 72, 0.8);
             border-right: 1px dashed rgba(225, 29, 72, 0.8);
-            backdrop-filter: blur(1px);
+            backdrop-filter: blur(2px);
             z-index: 5;
         }
 
-        /* ТОНКИЕ МЕРЦАЮЩИЕ СТЕКЛЯННЫЕ ЗОНЫ */
         .glass-zone {
             backdrop-filter: blur(4px);
             border-radius: 6px;
@@ -142,30 +141,29 @@
             transition: all 0.3s ease;
         }
         .gentle-pulse-anim {
-            animation: gentle-pulse 2.5s infinite alternate ease-in-out;
+            animation: gentle-pulse 2s infinite alternate ease-in-out;
         }
         @keyframes gentle-pulse {
             0% { opacity: 0.7; box-shadow: 0 0 15px currentColor; filter: brightness(1); }
-            100% { opacity: 1; box-shadow: 0 0 35px currentColor; filter: brightness(1.2); }
+            100% { opacity: 1; box-shadow: 0 0 35px currentColor; filter: brightness(1.25); }
         }
         .glass-zone-tp-long { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); border-top-color: rgba(16, 185, 129, 0.6); }
         .glass-zone-tp-short { background: rgba(225, 29, 72, 0.15); border-color: rgba(225, 29, 72, 0.4); border-top-color: rgba(225, 29, 72, 0.6); }
         .glass-zone-sl { background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4); border-top-color: rgba(168, 85, 247, 0.6); }
         
         .zone-interest-res { 
-            background: linear-gradient(180deg, rgba(239, 68, 68, 0.15) 0%, transparent 100%); 
-            border-top: 2px solid rgba(239, 68, 68, 0.8); 
-            box-shadow: inset 0 20px 40px -10px rgba(239, 68, 68, 0.2), 0 -10px 30px rgba(239, 68, 68, 0.2); 
+            background: linear-gradient(180deg, rgba(239, 68, 68, 0.2) 0%, transparent 100%); 
+            border-top: 2px solid rgba(239, 68, 68, 0.9); 
+            box-shadow: inset 0 20px 40px -10px rgba(239, 68, 68, 0.3), 0 -10px 30px rgba(239, 68, 68, 0.3); 
             color: #fca5a5; 
         }
         .zone-interest-sup { 
-            background: linear-gradient(0deg, rgba(16, 185, 129, 0.15) 0%, transparent 100%); 
-            border-bottom: 2px solid rgba(16, 185, 129, 0.8); 
-            box-shadow: inset 0 -20px 40px -10px rgba(16, 185, 129, 0.2), 0 10px 30px rgba(16, 185, 129, 0.2); 
+            background: linear-gradient(0deg, rgba(16, 185, 129, 0.2) 0%, transparent 100%); 
+            border-bottom: 2px solid rgba(16, 185, 129, 0.9); 
+            box-shadow: inset 0 -20px 40px -10px rgba(16, 185, 129, 0.3), 0 10px 30px rgba(16, 185, 129, 0.3); 
             color: #6ee7b7; 
         }
 
-        /* 3D АНИМАЦИЯ ПИРАМИДЫ С ГЛАЗОМ */
         .pyramid-container {
             perspective: 800px;
             width: 140px;
@@ -222,27 +220,26 @@
         .pixel-pulse { animation: pixel-pulse 2s infinite alternate; }
         @keyframes pixel-pulse { 0% { opacity: 0.3; } 100% { opacity: 1; box-shadow: 0 0 8px currentColor; } }
         
-        /* Лазер сканирования на графике */
         .chart-scanner-laser {
             position: absolute;
             top: 0; bottom: 0;
-            width: 3px;
+            width: 2px;
             background: #d946ef;
-            box-shadow: 0 0 20px 8px rgba(217, 70, 239, 0.5);
-            animation: chart-scan 3s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+            box-shadow: 0 0 25px 10px rgba(217, 70, 239, 0.6);
+            animation: chart-scan 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
             z-index: 25;
             pointer-events: none;
         }
         @keyframes chart-scan {
-            0% { left: 0%; opacity: 0; }
+            0% { left: 5%; opacity: 0; }
             10% { opacity: 1; }
             90% { opacity: 1; }
-            100% { left: 100%; opacity: 0; }
+            100% { left: 95%; opacity: 0; }
         }
 
         .crisp-chart-container {
             opacity: 1 !important;
-            filter: none !important; /* Убрали все фильтры для идеальной четкости */
+            filter: none !important;
         }
     </style>
 </head>
@@ -250,7 +247,7 @@
     <div id="error-boundary" style="display:none; position:fixed; top:0; left:0; right:0; background:rgba(225,29,72,0.95); color:white; padding:20px; z-index:99999; font-family:monospace; font-size:14px; backdrop-filter:blur(10px); border-bottom: 2px solid white;"></div>
     
     <script>
-        console.log("[System] Скрипты загружаются. Инициализация обработчиков ошибок...");
+        console.log("[System] Скрипты загружаются...");
         const showError = (msg, src, line) => {
             const errDiv = document.getElementById('error-boundary');
             if (errDiv && msg && !msg.includes('ResizeObserver')) {
@@ -319,11 +316,11 @@
         const InfoIcon = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>);
 
         const INITIAL_BALANCE = 5000;
-        const RISK_PERCENT = 0.0075; // ЖЕСТКО ФИКСИРОВАННЫЙ РИСК 0.75%
+        const RISK_PERCENT = 0.0075; // Фиксированный риск 0.75%
         const MAIN_TIMEFRAME = 'HYBRID 1H/15M (30D)';
         const MAX_DAILY_DD = 0.025; 
         const MIN_QUALITY_PROFIT = 0.75; 
-        const MIN_SCORE = 78; // Повышенный скор для входа
+        const MIN_SCORE = 78;
 
         const fetchWithTimeout = async (url, options = {}) => {
             const { timeout = 4000 } = options;
@@ -465,8 +462,9 @@
             const distTop = cUpper - curr15m.close;
             const distBot = curr15m.close - cLower;
             
-            const inResZone = distTop > -cAtr * 2.0 && distTop < cAtr * 3.5; 
-            const inSupZone = distBot > -cAtr * 2.0 && distBot < cAtr * 3.5;
+            // Вход только вблизи зон
+            const inResZone = distTop > -cAtr * 1.5 && distTop < cAtr * 3.5; 
+            const inSupZone = distBot > -cAtr * 1.5 && distBot < cAtr * 3.5;
             
             if (!inResZone && !inSupZone) return { valid: false, score: 0 };
 
@@ -494,8 +492,8 @@
             let shortConfluence = 0;
             let longConfluence = 0;
 
-            if (inResZone) shortConfluence += 40;
-            if (inSupZone) longConfluence += 40;
+            if (inResZone) shortConfluence += 50; // Увеличен вес зоны
+            if (inSupZone) longConfluence += 50;
 
             if (hasVolume) { shortConfluence += 15; longConfluence += 15; }
 
@@ -508,16 +506,13 @@
             if (isBearFVG && isBearish) shortConfluence += 15;
             if (isBullFVG && isBullish) longConfluence += 15;
 
-            if (cTrend === 1) longConfluence += 15;
-            if (cTrend === -1) shortConfluence += 15;
-
-            // СТРОГИЙ ФИЛЬТР ТРЕНДА 1H (если нет принудительного реверса)
+            // СТРОГАЯ фильтрация по тренду 1H
             if (!engineState.forcedDirection) {
-                if (cTrend === -1) longConfluence = 0; 
-                if (cTrend === 1) shortConfluence = 0; 
+                if (cTrend === 1) { longConfluence += 20; shortConfluence = 0; }
+                if (cTrend === -1) { shortConfluence += 20; longConfluence = 0; }
             } else {
-                if (engineState.forcedDirection === 'LONG') shortConfluence = 0;
-                if (engineState.forcedDirection === 'SHORT') longConfluence = 0;
+                if (engineState.forcedDirection === 'LONG') { longConfluence += 30; shortConfluence = 0; }
+                if (engineState.forcedDirection === 'SHORT') { shortConfluence += 30; longConfluence = 0; }
             }
 
             let isLong = false; let isShort = false; let patternName = ''; let finalScore = 0;
@@ -540,7 +535,6 @@
             let rawSlPrice = isLong ? Math.min(curr15m.low, prev15m.low) - (cAtr * 0.15) : Math.max(curr15m.high, prev15m.high) + (cAtr * 0.15);
             
             const slDistancePercent = Math.abs(entryPrice - rawSlPrice) / entryPrice * 100;
-            
             if (slDistancePercent > 1.3) return { valid: false, score: 0 }; 
             
             let slPrice = rawSlPrice;
@@ -608,7 +602,6 @@
             );
         });
 
-        // КОМПОНЕНТ ОТРИСОВКИ БОКСОВ СДЕЛОК, ПАУЗ И ЗОН ИНТЕРЕСА
         const ChartOverlays = window.React.memo(({ chart, series, trades, activeTrade, zoneInfo, isFocusMode, replayTrade, slCountdown, currentPriceRef, pauses }) => {
             const overlayRef = useRef(null);
             const [hoverPos, setHoverPos] = useState({x: 0, y: 0});
@@ -725,7 +718,6 @@
                         if(tpZone) tpZone.style.display = 'none'; if(slZone) slZone.style.display = 'none';
                     }
 
-                    // Зоны интереса (Улучшенная подсветка)
                     const interestZoneBox = overlayRef.current.querySelector('#interest-zone-box');
                     const interestZoneText = overlayRef.current.querySelector('#interest-zone-text');
                     if (zoneInfo && isFocusMode && interestZoneBox) {
@@ -1368,7 +1360,6 @@
                         trade.closePrice = closePrice;
                         trade.isPartialClosed = isPartialClosed;
                         
-                        // РАСЧЕТ КАЧЕСТВА СДЕЛКИ
                         const riskPriceDist = Math.abs(trade.entryPrice - trade.slPrice);
                         const rRealized = trade.realizedR;
                         const avgExitPrice = trade.isLong ? trade.entryPrice + (rRealized * riskPriceDist) : trade.entryPrice - (rRealized * riskPriceDist);
@@ -1380,7 +1371,7 @@
                         let isIgnored = false;
                         if (trade.isSmallWin) {
                             isIgnored = true;
-                            trade.pnl = 0; // Игнорируем влияние на баланс
+                            trade.pnl = 0; 
                             ignoredSmallWins++;
                         }
 
@@ -1394,6 +1385,7 @@
 
                             if (result === 'LOSS') {
                                 btEngineState.consecutiveLosses += 1;
+                                // 1 ЛОСС = СТРОГИЙ РЕВЕРС
                                 btEngineState.forcedDirection = trade.isLong ? 'SHORT' : 'LONG';
 
                                 if (btEngineState.consecutiveLosses >= 2) {
@@ -1402,15 +1394,15 @@
                                     btEngineState.securityPauseUntil = pEnd; 
                                     btEngineState.pauses.push({ startTime: closeTime, endTime: pEnd });
                                     btEngineState.consecutiveLosses = 0; 
-                                    btEngineState.forcedDirection = null; // Сброс принудительного направления после паузы
-                                    btEngineState.focus1HMode = true; 
+                                    btEngineState.forcedDirection = null; 
+                                    btEngineState.focus1HMode = true; // Смена UI фокуса
                                 }
                             } else {
                                 btEngineState.forcedDirection = null;
                                 btEngineState.consecutiveLosses = 0;
                             }
                         } else {
-                            // Мелкая победа просто сбрасывает серию убытков (избегаем тильта)
+                            // Мелкая победа сбрасывает серию убытков
                             btEngineState.forcedDirection = null;
                             btEngineState.consecutiveLosses = 0;
                         }
@@ -1431,8 +1423,6 @@
 
                 setAppState('PLAYBACK');
                 setAppPhase('ВИЗУАЛИЗАЦИЯ ИСТОРИИ СДЕЛОК...');
-                
-                // Экран загрузки скроется сам из-за смены appState
 
                 for(let trade of histTrades) { 
                     if (!engineActive.current) break;
@@ -1795,7 +1785,7 @@
                                     enqueueSpeech(`Сработал стоп лосс. Позиция закрыта. Это контролируемый риск.`, `sl-announce-${activeT.id}`, 0);
                                     
                                     engineStateRef.current.consecutiveLosses += 1;
-                                    engineStateRef.current.forcedDirection = activeT.isLong ? 'SHORT' : 'LONG';
+                                    engineStateRef.current.forcedDirection = activeT.isLong ? 'SHORT' : 'LONG'; // РЕВЕРС
 
                                     if (engineStateRef.current.consecutiveLosses >= 2) {
                                         const pEnd = Math.floor(Date.now()/1000) + 1800;
@@ -1882,7 +1872,7 @@
                     <div className="absolute inset-0 bg-grid-pattern pointer-events-none opacity-50"></div>
 
                     {appState === 'BACKTEST' && (
-                        <div className="absolute inset-0 z-[200] bg-[#030108]/90 backdrop-blur-3xl flex flex-col items-center justify-center pointer-events-none">
+                        <div className="absolute inset-0 z-[200] bg-[#030108]/90 backdrop-blur-3xl flex flex-col items-center justify-center pointer-events-none transition-opacity duration-300">
                             <div className="glass-panel-heavy p-12 flex flex-col items-center justify-center rounded-[2.5rem] border border-fuchsia-500/30 shadow-[0_0_100px_rgba(217,70,239,0.15)] relative overflow-hidden max-w-xl text-center">
                                 <div className="absolute inset-0 bg-gradient-to-br from-fuchsia-500/10 to-indigo-500/10"></div>
                                 
@@ -2138,7 +2128,7 @@
                                         <div key={t.id || idx} className={`p-2.5 rounded-xl border flex flex-col gap-1.5 transition-all cursor-default group ${t.pnl > 0 && t.isHighQuality ? 'bg-[#0f182b]/80 border-emerald-500/20 hover:border-emerald-500/40' : 'bg-[#1a0f14]/80 border-rose-500/10 hover:border-rose-500/30'}`}>
                                             <div className="flex justify-between items-center">
                                                 <div className="flex gap-2 items-center">
-                                                    <span className={`text-[9px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded shadow-inner ${t.type === 'LONG' ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-500/20' : 'bg-rose-900/40 text-rose-400 border border-rose-500/20'}`}>{t.type}</span>
+                                                    <span className={`text-[9px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded shadow-inner ${t.type === 'LONG' ? 'bg-[#e9d5ff]/20 text-[#e9d5ff] border border-[#e9d5ff]/30' : 'bg-rose-900/40 text-rose-400 border border-rose-500/20'}`}>{t.type}</span>
                                                     {t.isReverse && <span className="bg-amber-600/30 text-amber-400 px-1 py-0.5 rounded text-[7px] font-black shadow-inner">REV</span>}
                                                     <span className="text-[8px] text-slate-400 font-bold truncate max-w-[80px]" title={t.pattern}>{t.pattern}</span>
                                                 </div>
