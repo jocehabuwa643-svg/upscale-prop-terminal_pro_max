@@ -86,12 +86,6 @@
             border-radius: 1.5rem;
         }
 
-        .text-gradient {
-            background: linear-gradient(135deg, #d946ef, #e2e8f0, #a855f7);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
         .massive-broker-btn {
             background: linear-gradient(135deg, rgba(147, 51, 234, 0.7) 0%, rgba(79, 70, 229, 0.7) 50%, rgba(30, 27, 75, 0.8) 100%);
             backdrop-filter: blur(20px) saturate(150%);
@@ -126,10 +120,10 @@
         }
 
         .pause-glass-box {
-            background: linear-gradient(90deg, rgba(225, 29, 72, 0.1) 0%, rgba(159, 18, 57, 0.2) 50%, rgba(225, 29, 72, 0.1) 100%);
-            border-left: 1px dashed rgba(225, 29, 72, 0.6);
-            border-right: 1px dashed rgba(225, 29, 72, 0.6);
-            backdrop-filter: blur(2px);
+            background: linear-gradient(90deg, rgba(225, 29, 72, 0.05) 0%, rgba(159, 18, 57, 0.15) 50%, rgba(225, 29, 72, 0.05) 100%);
+            border-left: 1px dashed rgba(225, 29, 72, 0.8);
+            border-right: 1px dashed rgba(225, 29, 72, 0.8);
+            backdrop-filter: blur(1px);
             z-index: 5;
         }
 
@@ -145,63 +139,57 @@
             animation: gentle-pulse 2.5s infinite alternate ease-in-out;
         }
         @keyframes gentle-pulse {
-            0% { opacity: 0.65; box-shadow: 0 0 10px rgba(255,255,255,0.05); }
-            100% { opacity: 1; box-shadow: 0 0 25px rgba(255,255,255,0.15); }
+            0% { opacity: 0.7; box-shadow: 0 0 15px currentColor; }
+            100% { opacity: 1; box-shadow: 0 0 35px currentColor; }
         }
         .glass-zone-tp-long { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); border-top-color: rgba(16, 185, 129, 0.6); }
         .glass-zone-tp-short { background: rgba(225, 29, 72, 0.15); border-color: rgba(225, 29, 72, 0.4); border-top-color: rgba(225, 29, 72, 0.6); }
         .glass-zone-sl { background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4); border-top-color: rgba(168, 85, 247, 0.6); }
-        .glass-zone-interest-res { background: linear-gradient(90deg, transparent, rgba(225, 29, 72, 0.2) 50%, transparent); border-top: 1px solid rgba(225,29,72,0.6); border-bottom: 1px solid rgba(225,29,72,0.6); box-shadow: 0 0 40px rgba(225,29,72,0.2); }
-        .glass-zone-interest-sup { background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.2) 50%, transparent); border-top: 1px solid rgba(16,185,129,0.6); border-bottom: 1px solid rgba(16,185,129,0.6); box-shadow: 0 0 40px rgba(16,185,129,0.2); }
+        
+        .zone-interest-res { background: rgba(239, 68, 68, 0.15); border: 2px solid rgba(239, 68, 68, 0.6); box-shadow: 0 0 40px rgba(239, 68, 68, 0.3); color: #fca5a5; }
+        .zone-interest-sup { background: rgba(16, 185, 129, 0.15); border: 2px solid rgba(16, 185, 129, 0.6); box-shadow: 0 0 40px rgba(16, 185, 129, 0.3); color: #6ee7b7; }
 
-        /* АНИМАЦИИ ЭКРАНА ЗАГРУЗКИ */
-        @keyframes spin-pyramid {
-            0% { transform: rotateY(0deg) rotateX(10deg); }
-            100% { transform: rotateY(360deg) rotateX(10deg); }
+        /* ОБНОВЛЕННАЯ 3D АНИМАЦИЯ ПИРАМИДЫ */
+        .pyramid-container {
+            perspective: 800px;
+            width: 140px;
+            height: 140px;
+            position: relative;
+            z-index: 10;
         }
-        @keyframes eye-pulse {
-            0% { filter: drop-shadow(0 0 5px rgba(217,70,239,0.4)) scale(0.95); }
-            100% { filter: drop-shadow(0 0 25px rgba(217,70,239,0.9)) scale(1.05); }
+        .pyramid-wrapper {
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            animation: spin-pyramid-3d 4s linear infinite;
+            position: relative;
         }
-
-        .scanner-container {
-            background: radial-gradient(circle at center, rgba(10, 5, 20, 0.9) 0%, #030108 100%);
-            box-shadow: inset 0 0 150px rgba(168, 85, 247, 0.15);
-            perspective: 1000px;
+        @keyframes spin-pyramid-3d {
+            0% { transform: rotateX(15deg) rotateY(0deg); }
+            100% { transform: rotateX(15deg) rotateY(360deg); }
         }
-        .scanner-grid {
-            position: absolute; inset: -50%;
-            background-image: 
-                linear-gradient(to right, rgba(168, 85, 247, 0.15) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(168, 85, 247, 0.15) 1px, transparent 1px);
-            background-size: 60px 60px;
-            transform: rotateX(60deg) translateY(-100px) translateZ(-200px);
-            animation: holo-grid-move 15s linear infinite;
-            mask-image: radial-gradient(circle at center, black 0%, transparent 60%);
+        .pyramid-face {
+            position: absolute;
+            top: 20px; left: 10px;
+            width: 0; height: 0;
+            border-left: 60px solid transparent;
+            border-right: 60px solid transparent;
+            border-bottom: 100px solid;
+            transform-origin: 50% 100%;
+            opacity: 0.8;
         }
-        @keyframes holo-grid-move {
-            0% { background-position: 0 0; }
-            100% { background-position: 0 60px; }
+        .face-front { transform: translateZ(35px) rotateX(25deg); border-bottom-color: rgba(217, 70, 239, 0.9); }
+        .face-back { transform: translateZ(-35px) rotateX(-25deg) rotateY(180deg); border-bottom-color: rgba(168, 85, 247, 0.7); }
+        .face-left { transform: translateX(-35px) rotateY(-90deg) rotateX(25deg); border-bottom-color: rgba(192, 132, 252, 0.8); }
+        .face-right { transform: translateX(35px) rotateY(90deg) rotateX(25deg); border-bottom-color: rgba(147, 51, 234, 0.8); }
+        .pyramid-eye {
+            position: absolute; top: 60%; left: 50%;
+            transform: translate(-50%, -50%) translateZ(0px);
+            font-size: 32px;
+            text-shadow: 0 0 20px rgba(255,255,255,1);
+            animation: eye-pulse-3d 2s infinite alternate;
         }
-        .scanner-laser {
-            position: absolute; top: 0; bottom: 0; width: 2px;
-            background: #d946ef;
-            box-shadow: 0 0 30px 10px rgba(217, 70, 239, 0.8), 0 0 60px 20px rgba(217, 70, 239, 0.4);
-            animation: laser-sweep 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
-        }
-        @keyframes laser-sweep { 0% { left: 5%; opacity: 0.5; } 50% { opacity: 1; } 100% { left: 95%; opacity: 0.5; } }
-
-        .zone-capsule {
-            position: absolute; z-index: 48; pointer-events: none;
-            border-radius: 8px; backdrop-filter: blur(8px);
-            transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
-            opacity: 0; transform: scale(0.95);
-            overflow: hidden;
-        }
-        .zone-capsule.active { opacity: 1; transform: scale(1); animation: capsule-pulse 2s infinite alternate; }
-        .zone-capsule-res { background: rgba(244, 63, 94, 0.1); border: 1px dashed rgba(244, 63, 94, 0.5); box-shadow: inset 0 0 40px rgba(244, 63, 94, 0.2); }
-        .zone-capsule-sup { background: rgba(168, 85, 247, 0.1); border: 1px dashed rgba(168, 85, 247, 0.5); box-shadow: inset 0 0 40px rgba(168, 85, 247, 0.2); }
-        @keyframes capsule-pulse { 0% { box-shadow: inset 0 0 20px currentColor; } 100% { box-shadow: inset 0 0 60px currentColor; } }
+        @keyframes eye-pulse-3d { 0% { transform: translate(-50%, -50%) scale(0.9); filter: brightness(1); } 100% { transform: translate(-50%, -50%) scale(1.1); filter: brightness(1.5); } }
 
         .timer-alert-pulse { animation: timer-alert 1s infinite; }
         @keyframes timer-alert {
@@ -216,6 +204,12 @@
 
         .pixel-pulse { animation: pixel-pulse 2s infinite alternate; }
         @keyframes pixel-pulse { 0% { opacity: 0.3; } 100% { opacity: 1; box-shadow: 0 0 8px currentColor; } }
+        
+        /* Гарантия четкого графика */
+        .crisp-chart-container {
+            opacity: 1 !important;
+            filter: contrast(1.05) brightness(1.05);
+        }
     </style>
 </head>
 <body>
@@ -267,7 +261,6 @@
         };
         suppressResizeObserverErrors();
 
-        // Icons
         const Shield = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 4.81 17 6 19 6a1 1 0 0 1 1 1z"/></svg>);
         const Cpu = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>);
         const Activity = window.React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>);
@@ -293,10 +286,11 @@
 
         // Константы
         const INITIAL_BALANCE = 5000;
-        const RISK_PERCENT = 0.0075; // Жестко фиксированный риск 0.75%
+        const RISK_PERCENT = 0.0075; // ЖЕСТКО ФИКСИРОВАННЫЙ РИСК 0.75%
         const MAIN_TIMEFRAME = 'HYBRID 1H/15M (30D)';
         const MAX_DAILY_DD = 0.025; 
-        const MIN_QUALITY_PROFIT = 0.75; // Жесткий порог качества (в процентах)
+        const MIN_QUALITY_PROFIT = 0.75; // Жесткий порог качества
+        const MIN_SCORE = 78; // Повышенный скор для входа
 
         const fetchWithTimeout = async (url, options = {}) => {
             const { timeout = 4000 } = options;
@@ -396,6 +390,7 @@
             return res;
         }
 
+        // Тренд старшего таймфрейма (SMA 20)
         function calcTrendSeries(data, period = 20) {
             let res = [];
             for (let i = 0; i < data.length; i++) {
@@ -438,8 +433,8 @@
             const distTop = cUpper - curr15m.close;
             const distBot = curr15m.close - cLower;
             
-            const inResZone = distTop > -cAtr * 2.0 && distTop < cAtr * 3.0;
-            const inSupZone = distBot > -cAtr * 2.0 && distBot < cAtr * 3.0;
+            const inResZone = distTop > -cAtr * 2.0 && distTop < cAtr * 3.5; // Расширили зону поиска
+            const inSupZone = distBot > -cAtr * 2.0 && distBot < cAtr * 3.5;
             
             if (!inResZone && !inSupZone) return { valid: false, score: 0 };
 
@@ -485,7 +480,7 @@
             if (cTrend === 1) longConfluence += 15;
             if (cTrend === -1) shortConfluence += 15;
 
-            // Strict Filter: 15M signal MUST match 1H trend unless forced by reverse logic
+            // СТРОГИЙ ФИЛЬТР ТРЕНДА 1H (если нет принудительного реверса)
             if (!engineState.forcedDirection) {
                 if (cTrend === -1) longConfluence = 0; 
                 if (cTrend === 1) shortConfluence = 0; 
@@ -493,13 +488,13 @@
 
             let isLong = false; let isShort = false; let patternName = ''; let finalScore = 0;
 
-            // Increased minimum score to 75
-            if (shortConfluence >= 75 && engineState.forcedDirection !== 'LONG') {
+            // Повышенный минимальный порог
+            if (shortConfluence >= MIN_SCORE && engineState.forcedDirection !== 'LONG') {
                 isShort = true; finalScore = shortConfluence;
                 if (isBearishRejection) patternName = 'LIQUIDITY SWEEP';
                 else if (isBearFVG) patternName = 'ORDER BLOCK + FVG';
                 else patternName = 'ZONE RETEST + BOS';
-            } else if (longConfluence >= 75 && engineState.forcedDirection !== 'SHORT') {
+            } else if (longConfluence >= MIN_SCORE && engineState.forcedDirection !== 'SHORT') {
                 isLong = true; finalScore = longConfluence;
                 if (isBullishRejection) patternName = 'LIQUIDITY SWEEP';
                 else if (isBullFVG) patternName = 'ORDER BLOCK + FVG';
@@ -521,13 +516,12 @@
             
             const riskDist = Math.abs(entryPrice - slPrice);
             
-            // Целевые таргеты 1.0% и 1.3%
+            // Целевые таргеты (приоритет 1.0% - 1.3%)
             const decision = finalScore >= 85 ? 'TRAIL' : 'FIXED';
             const targetPercentValue = decision === 'TRAIL' ? 1.3 : 1.0; 
             const tpDist = entryPrice * (targetPercentValue / 100);
             const levelTarget = isLong ? entryPrice + tpDist : entryPrice - tpDist;
             
-            // Уровень для частичной фиксации 50% (+1R)
             const level1R = isLong ? entryPrice + riskDist : entryPrice - riskDist;
 
             return { 
@@ -583,60 +577,7 @@
             );
         });
 
-        const ScannerHUD = window.React.memo(({ data, tf }) => {
-            const [scanIndex, setScanIndex] = useState(0);
-            
-            useEffect(() => {
-                if (!data || data.length === 0) return;
-                let isActive = true;
-                const len = Math.min(100, data.length);
-                const step = () => {
-                    if (!isActive) return;
-                    setScanIndex(prev => (prev + 1) % len);
-                    setTimeout(step, 40);
-                };
-                step();
-                return () => { isActive = false; };
-            }, [data]);
-
-            if (!data || data.length < 2) return null;
-            
-            const chartData = data.slice(-100); 
-            const min = Math.min(...chartData.map(d => d.low)); const max = Math.max(...chartData.map(d => d.high));
-            const range = (max - min) || 1; const width = 800, height = 200; const candleWidth = width / chartData.length;
-
-            return (
-                <div className="absolute inset-0 z-30 scanner-container flex flex-col justify-center overflow-hidden pointer-events-none rounded-3xl">
-                    <div className="scanner-grid"></div>
-                    
-                    <div className="absolute top-6 left-6 text-fuchsia-400 font-mono text-sm font-black drop-shadow-[0_0_8px_rgba(217,70,239,0.8)] flex flex-col gap-1">
-                        <div className="flex items-center gap-2"><Radar size={16} className="animate-spin" /> SCANNER ACTIVE [{tf}]</div>
-                        <div className="flex items-center gap-2 text-xs text-purple-300 opacity-80"><div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"></div> SEARCHING LIQUIDITY ZONES</div>
-                    </div>
-
-                    <div className="w-full relative h-[220px] mt-8 px-6">
-                        <svg className="w-full h-full opacity-70 drop-shadow-[0_0_10px_rgba(168,85,247,0.4)]" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-                            {chartData.map((c, i) => {
-                                const isUp = c.close >= c.open; const x = i * candleWidth; const w = candleWidth * 0.6;
-                                const oY = height - ((c.open - min) / range) * height; const cY = height - ((c.close - min) / range) * height;
-                                const hY = height - ((c.high - min) / range) * height; const lY = height - ((c.low - min) / range) * height;
-                                const isTarget = i === scanIndex;
-                                return (
-                                    <g key={i} className="transition-opacity duration-150" style={{ opacity: isTarget ? 1 : 0.3 }}>
-                                        <line x1={x + w / 2} y1={hY} x2={x + w / 2} y2={lY} stroke={isUp ? "#c084fc" : "#64748b"} strokeWidth="1" />
-                                        <rect x={x} y={isUp ? cY : oY} width={w} height={Math.max(Math.abs(cY - oY), 2)} fill={isUp ? (isTarget ? "#f0abfc" : "#a855f7") : "transparent"} stroke={isUp ? "none" : (isTarget ? "#cbd5e1" : "#64748b")} strokeWidth="1.5" />
-                                    </g>
-                                );
-                            })}
-                        </svg>
-                        
-                        <div className="scanner-laser" style={{ left: `calc(1.5rem + ${(scanIndex / chartData.length) * 100}%)` }}></div>
-                    </div>
-                </div>
-            );
-        });
-
-        // КОМПОНЕНТ ОТРИСОВКИ БОКСОВ СДЕЛОК И ПАУЗ
+        // КОМПОНЕНТ ОТРИСОВКИ БОКСОВ СДЕЛОК, ПАУЗ И ЗОН ИНТЕРЕСА
         const ChartOverlays = window.React.memo(({ chart, series, trades, activeTrade, zoneInfo, isFocusMode, replayTrade, slCountdown, currentPriceRef, pauses }) => {
             const overlayRef = useRef(null);
             const [hoverPos, setHoverPos] = useState({x: 0, y: 0});
@@ -756,18 +697,21 @@
                         if(tpZone) tpZone.style.display = 'none'; if(slZone) slZone.style.display = 'none';
                     }
 
-                    // Зоны интереса
+                    // Зоны интереса (Улучшено отображение при подходе цены)
                     const interestZoneBox = overlayRef.current.querySelector('#interest-zone-box');
-                    if (zoneInfo && isFocusMode && interestZoneBox) {
+                    const interestZoneText = overlayRef.current.querySelector('#interest-zone-text');
+                    if (zoneInfo && interestZoneBox) {
                         const zTop = series.priceToCoordinate(zoneInfo.top);
                         const zBot = series.priceToCoordinate(zoneInfo.bottom);
                         if (zTop !== null && zBot !== null) {
-                            interestZoneBox.style.display = 'block';
+                            interestZoneBox.style.display = 'flex';
                             const top = Math.min(zTop, zBot);
                             const height = Math.max(40, Math.abs(zBot - zTop));
                             interestZoneBox.style.top = `${top}px`;
                             interestZoneBox.style.height = `${height}px`;
-                            interestZoneBox.className = `absolute z-[5] pointer-events-none w-full left-0 backdrop-blur-[4px] transition-all duration-500 ${zoneInfo.type === 'RESISTANCE' ? 'glass-zone-interest-res' : 'glass-zone-interest-sup'}`;
+                            interestZoneBox.className = `absolute z-[5] pointer-events-none w-full left-0 rounded-xl backdrop-blur-[2px] transition-all duration-300 gentle-pulse-anim flex items-center justify-center ${zoneInfo.type === 'RESISTANCE' ? 'zone-interest-res' : 'zone-interest-sup'}`;
+                            
+                            interestZoneText.innerHTML = `<span class="font-black text-[13px] tracking-[0.2em]">ОЖИДАЕТСЯ ${zoneInfo.type === 'RESISTANCE' ? 'SHORT' : 'LONG'}</span><span class="ml-2 font-mono text-[10px] opacity-80">${zoneInfo.bottom.toFixed(2)} - ${zoneInfo.top.toFixed(2)}</span>`;
                         } else { interestZoneBox.style.display = 'none'; }
                     } else if (interestZoneBox) { interestZoneBox.style.display = 'none'; }
 
@@ -784,10 +728,16 @@
                 <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden" ref={overlayRef}>
                     
                     {pauses.map((p, i) => (
-                        <div key={`pause_${i}`} className="pause-glass-box absolute z-[5] bg-rose-900/20 border-x border-rose-500/40 backdrop-blur-[2px] flex flex-col items-center justify-center pointer-events-none" style={{display: 'none'}}>
-                            <div className="bg-rose-950/80 border border-rose-500/50 px-2 py-1 rounded text-[8px] font-black text-rose-400 rotate-[-90deg] whitespace-nowrap tracking-widest shadow-[0_0_10px_rgba(225,29,72,0.3)] uppercase">ПАУЗА 30 МИН</div>
+                        <div key={`pause_${i}`} className="pause-glass-box absolute z-[5] flex flex-col items-center justify-center pointer-events-none" style={{display: 'none'}}>
+                            <div className="bg-rose-950/90 border border-rose-500/70 px-2 py-1 rounded text-[8px] font-black text-rose-300 rotate-[-90deg] whitespace-nowrap tracking-widest shadow-[0_0_15px_rgba(225,29,72,0.4)] uppercase">ПАУЗА БЕЗОПАСНОСТИ 30 МИН</div>
                         </div>
                     ))}
+
+                    <div id="interest-zone-box" style={{display: 'none'}}>
+                        <div id="interest-zone-text" className="bg-[#0a0514]/80 px-6 py-2 rounded-lg shadow-lg flex items-center">
+                            ZONE
+                        </div>
+                    </div>
 
                     {allTradesToRender.map((trade, i) => {
                         const isWin = trade.pnl > 0 || trade.result?.includes('WIN');
@@ -800,6 +750,11 @@
                             pricePercent = currentPriceRef?.current ? (Math.abs(currentPriceRef.current - trade.entryPrice) / trade.entryPrice * 100).toFixed(2) : '0.00';
                         } else {
                             pricePercent = trade.effectivePricePercent ? trade.effectivePricePercent.toFixed(2) : '0.00';
+                        }
+
+                        // Убираем рендер мелких сделок из DOM
+                        if (!isActive && trade.isSmallWin) {
+                            return <div key={trade.id || i} className="trade-glass-box hidden" style={{display: 'none'}}></div>;
                         }
 
                         // Логика цвета бокса
@@ -863,14 +818,6 @@
                                 <span className="opacity-90">{(activeTrade.trailingSL || activeTrade.slPrice)?.toFixed(2)}</span>
                             </div>
                         )}
-                    </div>
-
-                    <div id="interest-zone-box" style={{display: 'none'}}>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <div id="interest-zone-text" className="text-white font-black text-xs tracking-[0.2em] bg-black/60 px-6 py-2 rounded-full border border-white/20 backdrop-blur-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] flex items-center">
-                                ZONE
-                            </div>
-                        </div>
                     </div>
 
                     {slCountdown !== null && slCountdown > 0 && (
@@ -1142,6 +1089,23 @@
                 return () => clearInterval(rotInt); 
             }, [isStarted, newsData]);
 
+            useEffect(() => {
+                if (!isStarted || newsData.length === 0) return;
+                
+                const tryReadNews = () => {
+                    if (speechQueueRef.current.length === 0 && !isSpeakingRef.current) {
+                        const randomNewsIndex = Math.floor(Math.random() * newsData.length);
+                        const newsText = newsData[randomNewsIndex];
+                        enqueueSpeech(`Фоновая сводка новостей. ${newsText}`, `news-update`, 0);
+                    } else {
+                        setTimeout(tryReadNews, 30000);
+                    }
+                };
+
+                const newsReaderInterval = setInterval(tryReadNews, 15 * 60 * 1000); 
+                return () => clearInterval(newsReaderInterval);
+            }, [isStarted, newsData, enqueueSpeech]);
+
             const initChart = async () => {
                 if (!chartContainerRef.current) { setTimeout(initChart, 500); return; }
                 if (!window.LightweightCharts) {
@@ -1155,14 +1119,15 @@
                 const chart = window.LightweightCharts.createChart(chartContainerRef.current, {
                     width: chartContainerRef.current.clientWidth, height: chartContainerRef.current.clientHeight,
                     layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#cbd5e1', fontFamily: 'JetBrains Mono' },
-                    grid: { vertLines: { color: 'rgba(168, 85, 247, 0.05)' }, horzLines: { color: 'rgba(168, 85, 247, 0.05)' } },
+                    grid: { vertLines: { color: 'rgba(255, 255, 255, 0.03)' }, horzLines: { color: 'rgba(255, 255, 255, 0.03)' } },
                     timeScale: { timeVisible: true, borderVisible: false, rightOffset: 20 }, rightPriceScale: { borderVisible: false }
                 });
 
+                // ЯРКИЕ, КОНТРАСТНЫЕ СВЕЧИ
                 candleSeries.current = chart.addCandlestickSeries({ 
-                    upColor: '#c084fc', downColor: '#64748b', borderVisible: true, 
-                    borderUpColor: '#d946ef', borderDownColor: '#94a3b8', 
-                    wickUpColor: '#d946ef', wickDownColor: '#94a3b8' 
+                    upColor: '#10b981', downColor: '#ef4444', borderVisible: true, 
+                    borderUpColor: '#10b981', borderDownColor: '#ef4444', 
+                    wickUpColor: '#10b981', wickDownColor: '#ef4444' 
                 });
                 chartInstance.current = chart;
 
@@ -1185,7 +1150,7 @@
                 if (!candleSeries.current || !trade) return;
                 
                 try {
-                    const entryLine = candleSeries.current.createPriceLine({ price: trade.entryPrice, color: trade.isLong ? '#c084fc' : '#64748b', lineWidth: 2, lineStyle: 0, title: 'ENTRY' });
+                    const entryLine = candleSeries.current.createPriceLine({ price: trade.entryPrice, color: trade.isLong ? '#10b981' : '#ef4444', lineWidth: 2, lineStyle: 0, title: 'ENTRY' });
                     
                     let slColor = trade.isPartialClosed ? '#f59e0b' : '#e11d48'; 
                     let slTitle = trade.isPartialClosed ? 'TRAIL SL' : 'STOP LOSS';
@@ -1248,7 +1213,7 @@
                 let ignoredSmallWins = 0;
 
                 for (let i = startIdx; i < data15m.length - 2; i++) {
-                    if (i % 50 === 0) await sleep(10);
+                    if (i % 50 === 0) await sleep(1);
                     
                     if (data15m[i].time < btEngineState.securityPauseUntil) continue;
                     
@@ -1439,7 +1404,8 @@
 
                 setAppState('PLAYBACK');
                 setAppPhase('ВИЗУАЛИЗАЦИЯ ИСТОРИИ СДЕЛОК...');
-                await sleep(500); 
+                
+                // Мгновенное скрытие экрана загрузки через React состояние
 
                 for(let trade of histTrades) { 
                     if (!engineActive.current) break;
@@ -1495,7 +1461,7 @@
                 while (engineActive.current) {
                     try {
                         const nowSec = Math.floor(Date.now() / 1000);
-                        const calculatedStake = propBalanceRef.current * RISK_PERCENT; // Фиксированный риск
+                        const calculatedStake = propBalanceRef.current * RISK_PERCENT;
                         setCurrentStake(calculatedStake);
 
                         const dailyDD = (engineStateRef.current.dailyStartBalance - propBalanceRef.current) / engineStateRef.current.dailyStartBalance;
@@ -1578,13 +1544,14 @@
                                 const distTop = z.upper - currentPrice.current;
                                 const distBot = currentPrice.current - z.lower;
                                 
-                                if (distTop > -a * 1.5 && distTop < a * 2.5) {
+                                // Более широкая зона поиска
+                                if (distTop > -a * 1.5 && distTop < a * 3.5) {
                                     if (!updatedZone || updatedZone.type !== 'RESISTANCE') {
                                         updatedZone = { type: 'RESISTANCE', top: z.upper, bottom: z.upper - (a*0.5), time: freshData15M[freshData15M.length-1].time, atr: a };
                                         enqueueSpeech(`Цена подошла к зоне интересов. Ожидается шорт.`, `zone-res`, 90000);
                                         playSound('zone');
                                     }
-                                } else if (distBot > -a * 1.5 && distBot < a * 2.5) {
+                                } else if (distBot > -a * 1.5 && distBot < a * 3.5) {
                                     if (!updatedZone || updatedZone.type !== 'SUPPORT') {
                                         updatedZone = { type: 'SUPPORT', top: z.lower + (a*0.5), bottom: z.lower, time: freshData15M[freshData15M.length-1].time, atr: a };
                                         enqueueSpeech(`Цена подошла к зоне интересов. Ожидается лонг.`, `zone-sup`, 90000);
@@ -1796,6 +1763,8 @@
                                 } else if (result.includes('WIN')) {
                                     enqueueSpeech(`Тейк профит достигнут. Прибыль составила ${activeT.pnl.toFixed(2)} долларов.`, `tp-announce-${activeT.id}`, 0);
                                     playSound('win');
+                                    engineStateRef.current.consecutiveLosses = 0;
+                                    engineStateRef.current.forcedDirection = null;
                                 } else if (result === 'LOSS') {
                                     playSound('loss');
                                     enqueueSpeech(`Сработал стоп лосс. Позиция закрыта. Это контролируемый риск.`, `sl-announce-${activeT.id}`, 0);
@@ -1808,7 +1777,7 @@
                                         engineStateRef.current.securityPauseUntil = pEnd; 
                                         setPausesHistory(prev => [...prev, { startTime: Math.floor(Date.now()/1000), endTime: pEnd }]);
                                         engineStateRef.current.consecutiveLosses = 0; 
-                                        engineStateRef.current.focus1HMode = true; // Смена UI фокуса
+                                        engineStateRef.current.focus1HMode = true;
                                         enqueueSpeech(`Два убытка подряд. Активирована пауза безопасности на 30 минут. Поиск переведен на старший таймфрейм.`, `sec-pause-${activeT.id}`, 0);
                                     } else {
                                         enqueueSpeech(`Включен реверсный режим. Следующий поиск строго в противоположную сторону.`, `reverse-${activeT.id}`, 0);
@@ -1887,39 +1856,19 @@
                     <div className="absolute inset-0 bg-grid-pattern pointer-events-none opacity-50"></div>
 
                     {appState === 'BACKTEST' && (
-                        <div className="absolute inset-0 z-[200] bg-[#030108]/95 backdrop-blur-2xl flex flex-col items-center justify-center transition-opacity duration-300 pointer-events-none">
+                        <div className="absolute inset-0 z-[200] bg-[#030108]/90 backdrop-blur-3xl flex flex-col items-center justify-center pointer-events-none">
                             <div className="glass-panel-heavy p-12 flex flex-col items-center justify-center rounded-[2.5rem] border border-fuchsia-500/30 shadow-[0_0_100px_rgba(217,70,239,0.15)] relative overflow-hidden max-w-xl text-center">
                                 <div className="absolute inset-0 bg-gradient-to-br from-fuchsia-500/10 to-indigo-500/10"></div>
                                 
-                                <div className="relative w-40 h-40 mb-10 z-10" style={{ perspective: '1000px' }}>
-                                    <div className="absolute inset-0 animate-[spin-pyramid_4s_linear_infinite]" style={{ transformStyle: 'preserve-3d' }}>
-                                        <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_20px_rgba(217,70,239,0.6)] overflow-visible">
-                                            <defs>
-                                                <linearGradient id="pyramid-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                                    <stop offset="0%" stopColor="rgba(217,70,239,0.85)" />
-                                                    <stop offset="50%" stopColor="rgba(168,85,247,0.45)" />
-                                                    <stop offset="100%" stopColor="rgba(79,70,229,0.85)" />
-                                                </linearGradient>
-                                                <filter id="glow-pyramid">
-                                                    <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                                                    <feMerge>
-                                                        <feMergeNode in="coloredBlur"/>
-                                                        <feMergeNode in="SourceGraphic"/>
-                                                    </feMerge>
-                                                </filter>
-                                            </defs>
-                                            <polygon points="50,15 90,85 10,85" fill="url(#pyramid-grad)" stroke="rgba(255,255,255,0.7)" strokeWidth="1" filter="url(#glow-pyramid)" />
-                                            <line x1="50" y1="15" x2="50" y2="85" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
-                                            <line x1="10" y1="85" x2="90" y2="85" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
-                                            
-                                            <g className="animate-[eye-pulse_2.5s_infinite_alternate]" style={{ transformOrigin: '50% 65%' }}>
-                                                <path d="M 32,65 Q 50,52 68,65 Q 50,78 32,65 Z" fill="rgba(255,255,255,0.95)" stroke="#d946ef" strokeWidth="1.5" />
-                                                <circle cx="50" cy="65" r="6.5" fill="#0f172a" />
-                                                <circle cx="48" cy="63" r="2.5" fill="#fff" />
-                                            </g>
-                                        </svg>
+                                <div className="pyramid-container mb-10">
+                                    <div className="pyramid-wrapper">
+                                        <div className="pyramid-face face-front"></div>
+                                        <div className="pyramid-face face-back"></div>
+                                        <div className="pyramid-face face-left"></div>
+                                        <div className="pyramid-face face-right"></div>
                                     </div>
-                                    <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-32 h-6 bg-fuchsia-500/40 blur-[15px] rounded-full"></div>
+                                    <div className="pyramid-eye">👁</div>
+                                    <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-32 h-6 bg-fuchsia-500/50 blur-[20px] rounded-full"></div>
                                 </div>
                                 
                                 <h2 className="text-[14px] leading-relaxed font-black text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-200 to-indigo-200 tracking-[0.25em] oswald-font text-center z-10 drop-shadow-md">
@@ -2031,21 +1980,12 @@
 
                             <div className={`flex-1 rounded-[2rem] overflow-hidden bg-[rgba(5,2,10,0.8)] border relative flex flex-col min-h-[350px] w-full transition-all duration-700 ${appState === 'ZONE_DETECTED' || appState === 'PREPARING' ? 'border-fuchsia-500 shadow-[0_0_50px_rgba(217,70,239,0.2)]' : 'border-purple-500/20 shadow-[inset_0_0_50px_rgba(0,0,0,0.8)]'}`}>
                                 
-                                {appState === 'SCANNING' && <ScannerHUD data={chartDataForScanner} tf={currentTF} />}
-
-                                {appState === 'PREPARING' && prepCountdown !== null && (
-                                    <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center backdrop-blur-md">
-                                        <span className="text-base font-black text-fuchsia-400 tracking-[0.3em] uppercase mb-6 animate-pulse">Вход в позицию 15M через...</span>
-                                        <div className="text-8xl font-black text-white drop-shadow-[0_0_50px_rgba(217,70,239,1)] mono-font">{prepCountdown}</div>
-                                    </div>
-                                )}
-
                                 <div className={`absolute top-5 left-5 z-20 bg-black/60 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 flex flex-col pointer-events-none transition-opacity ${appState === 'SCANNING' || appState === 'BACKTEST' ? 'opacity-0' : 'opacity-100'}`}>
                                     <span className="text-xl font-black text-white oswald-font tracking-widest drop-shadow-md">BTC/USDT</span>
                                     <span className="text-sm text-fuchsia-300 font-mono font-bold mt-1">Price: {formatPrice(currentPrice.current)}</span>
                                 </div>
                                 
-                                <div ref={chartContainerRef} className="absolute inset-0 w-full h-full z-10" style={{ opacity: appState === 'SCANNING' ? 0.05 : 1 }} />
+                                <div ref={chartContainerRef} className="absolute inset-0 w-full h-full z-10 crisp-chart-container" />
                                 
                                 <ChartOverlays 
                                     chart={chartInstance.current} 
@@ -2059,6 +1999,13 @@
                                     currentPriceRef={currentPrice}
                                     pauses={pausesHistory}
                                 />
+
+                                {appState === 'PREPARING' && prepCountdown !== null && (
+                                    <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center backdrop-blur-md">
+                                        <span className="text-base font-black text-fuchsia-400 tracking-[0.3em] uppercase mb-6 animate-pulse">Вход в позицию 15M через...</span>
+                                        <div className="text-8xl font-black text-white drop-shadow-[0_0_50px_rgba(217,70,239,1)] mono-font">{prepCountdown}</div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="shrink-0">
