@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -53,7 +52,6 @@
         .trade-glass-box:hover { filter: brightness(1.3); z-index: 50 !important; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(255,255,255,0.2); }
         .pause-glass-box { background: linear-gradient(90deg, rgba(225, 29, 72, 0.05) 0%, rgba(159, 18, 57, 0.15) 50%, rgba(225, 29, 72, 0.05) 100%); border-left: 1px dashed rgba(225, 29, 72, 0.8); border-right: 1px dashed rgba(225, 29, 72, 0.8); backdrop-filter: blur(2px); z-index: 5; }
 
-        /* ВИЗУАЛИЗАЦИЯ: Узкие мерцающие зоны SL и TP (по ТЗ) */
         .glass-zone { backdrop-filter: blur(2px); border-radius: 4px; transition: all 0.3s ease; height: 12px !important; border-top: 1px solid; border-bottom: 1px solid; animation: fast-flicker 1.5s infinite alternate ease-in-out; }
         @keyframes fast-flicker { 0% { opacity: 0.6; filter: brightness(1); box-shadow: 0 0 10px currentColor; } 100% { opacity: 1; filter: brightness(1.4); box-shadow: 0 0 20px currentColor, inset 0 0 10px currentColor; } }
         
@@ -102,10 +100,6 @@
     <script type="text/babel">
         const { useState, useEffect, useRef, useCallback, useMemo } = window.React;
 
-        window.addEventListener('error', e => {
-            if (e.message?.includes('ResizeObserver')) { e.stopImmediatePropagation(); e.preventDefault(); }
-        });
-
         class ErrorBoundary extends React.Component {
             constructor(props) {
                 super(props);
@@ -134,7 +128,6 @@
             }
         }
 
-        // ICONS
         const Shield = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 4.81 17 6 19 6a1 1 0 0 1 1 1z"/></svg>);
         const Cpu = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>);
         const Activity = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>);
@@ -149,14 +142,13 @@
         const TrendingDown = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline></svg>);
         const InfoIcon = React.memo(({ size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>);
 
-        // CONSTANTS
         const INITIAL_BALANCE = 5000;
         
-        // --- 1H ФОКУС, РЕВЕРС ПОСЛЕ 1-ГО УБЫТКА ---
+        // --- 1H ФОКУС, РЕВЕРС ПОСЛЕ 2-Х УБЫТКОВ ---
         const RISK_PERCENT = 0.0075; 
         const MAIN_TIMEFRAME = '1H PURE SCALPING (30D)';
         const MAX_DAILY_DD = 0.025; 
-        const MIN_SCORE = 80; // Строгий фильтр для 1H (Зона + Отбой)
+        const MIN_SCORE = 80; 
         const MIN_QUALITY_PROFIT = 0.80; 
 
         const FALLBACK_NEWS = [
@@ -263,13 +255,32 @@
             return res;
         }
 
+        function calcMarketRegime(data, periodShort = 20, periodLong = 50) {
+            let res = [];
+            for (let i = 0; i < data.length; i++) {
+                if (i < periodLong) { res.push({ time: data[i].time, regime: 'RANGING' }); continue; }
+                let sumS = 0; for (let j = 0; j < periodShort; j++) sumS += data[i - j].close;
+                let sumL = 0; for (let j = 0; j < periodLong; j++) sumL += data[i - j].close;
+                let smaS = sumS / periodShort;
+                let smaL = sumL / periodLong;
+                
+                let diff = (smaS - smaL) / smaL * 100;
+                let regime = 'RANGING';
+                if (diff > 0.5) regime = 'BULLISH';
+                else if (diff < -0.5) regime = 'BEARISH';
+                
+                res.push({ time: data[i].time, regime });
+            }
+            return res;
+        }
+
         const getLatestClosedHTFOpenTime = (currentEvalTime, timeframeSec) => {
             let remainder = currentEvalTime % timeframeSec;
             if (remainder === 0) return currentEvalTime - timeframeSec;
             return currentEvalTime - remainder - timeframeSec;
         };
 
-        function evaluateSignalEngineHybrid(data15m, evalIdx, liqMap1H, atrMap1H, trendMap1H, trendMap4H, engineState) {
+        function evaluateSignalEngineHybrid(data15m, evalIdx, liqMap1H, atrMap1H, trendMap1H, trendMap4H, regimeMap1H, engineState) {
             if (evalIdx < 20 || !data15m || !data15m[evalIdx]) return { valid: false, score: 0 };
 
             const curr15m = data15m[evalIdx];
@@ -282,11 +293,13 @@
             let zones = liqMap1H.get(t1H) || liqMap1H.get(t1H - 3600) || liqMap1H.get(t1H - 7200);
             let cAtr = atrMap1H.get(t1H) || atrMap1H.get(t1H - 3600);
             let cTrend = trendMap1H.get(t1H) || trendMap1H.get(t1H - 3600);
+            let cRegime = regimeMap1H.get(t1H) || regimeMap1H.get(t1H - 3600) || 'RANGING';
             
             if (!zones || !cAtr || cTrend === undefined) {
                 let latest1H = 0;
                 for (let t of trendMap1H.keys()) if (t <= currentEvalTime && t > latest1H) latest1H = t;
                 zones = liqMap1H.get(latest1H); cAtr = atrMap1H.get(latest1H); cTrend = trendMap1H.get(latest1H);
+                cRegime = regimeMap1H.get(latest1H) || 'RANGING';
             }
 
             if (!zones || !cAtr || cTrend === undefined) return { valid: false, score: 0 };
@@ -310,18 +323,23 @@
 
             let shortConfluence = 0; let longConfluence = 0;
             
-            // Чистый 1H скоринг: Огромный вес зоны и отскока. 4H исключен.
+            // Чистый 1H скоринг: Огромный вес зоны и отскока.
             if (inResZone) shortConfluence += 45; if (inSupZone) longConfluence += 45;
             if (isBearishRejection) shortConfluence += 25; if (isBullishRejection) longConfluence += 25;
             if (isBearFVG && isBearish) shortConfluence += 15; if (isBullFVG && isBullish) longConfluence += 15;
             if (cTrend === -1) shortConfluence += 15; if (cTrend === 1) longConfluence += 15;
+
+            // Учет режима рынка для оценки (добавлено по ТЗ)
+            if (cRegime === 'BEARISH') shortConfluence += 20;
+            if (cRegime === 'BULLISH') longConfluence += 20;
+            if (cRegime === 'RANGING') { shortConfluence += 10; longConfluence += 10; }
 
             // ФОРСИРОВАННОЕ НАПРАВЛЕНИЕ (после 1 убытка или после паузы)
             if (engineState.forcedDirection === 'LONG') shortConfluence = 0;
             if (engineState.forcedDirection === 'SHORT') longConfluence = 0;
 
             let isLong = false; let isShort = false; let patternName = ''; let finalScore = 0;
-            // Для входа требуется 80 баллов (Зона 45 + Отскок 25 + FVG/Тренд 15)
+            // Для входа требуется 80 баллов
             if (shortConfluence >= MIN_SCORE && engineState.forcedDirection !== 'LONG') {
                 isShort = true; finalScore = shortConfluence;
                 patternName = '1H ZONE SWEEP + REJECTION';
@@ -341,7 +359,17 @@
             let slPrice = rawSlPrice; const riskDist = Math.abs(entryPrice - slPrice);
             const decision = finalScore >= 85 ? 'TRAIL' : 'FIXED';
             
-            const targetPercentValue = decision === 'TRAIL' ? 1.45 : 1.15; 
+            // Динамический Тейк-Профит (1% - 5%) в зависимости от силы рынка
+            let targetPercentValue = 1.0;
+            if (decision === 'TRAIL') {
+                if (isLong && cRegime === 'BULLISH') targetPercentValue = (finalScore >= 95) ? 5.0 : 3.0;
+                else if (isShort && cRegime === 'BEARISH') targetPercentValue = (finalScore >= 95) ? 5.0 : 3.0;
+                else if (cRegime === 'RANGING') targetPercentValue = 2.0;
+                else targetPercentValue = 1.5;
+            } else {
+                targetPercentValue = 1.15;
+            }
+            
             const tpDist = entryPrice * (targetPercentValue / 100);
             const levelTarget = isLong ? entryPrice + tpDist : entryPrice - tpDist;
             const level1R = isLong ? entryPrice + riskDist : entryPrice - riskDist;
@@ -353,7 +381,6 @@
             };
         }
 
-        // COMPONENTS
         const CompactSpeedometer = React.memo(({ value, label, color }) => {
             const safeValue = isNaN(value) ? 50 : Math.max(0, Math.min(100, value));
             const angle = -90 + (safeValue / 100) * 180; const circumference = Math.PI * 25; const strokeDashoffset = circumference - (safeValue / 100) * circumference;
@@ -406,53 +433,57 @@
                         
                         const tradeBoxes = overlayRef.current.querySelectorAll('.trade-glass-box');
                         tradeBoxes.forEach((box, i) => {
-                            const trade = allTrades[i];
-                            if (!trade) { box.style.display = 'none'; return; }
+                            try {
+                                const trade = allTrades[i];
+                                if (!trade) { box.style.display = 'none'; return; }
 
-                            const isTradeActive = trade.status === 'ACTIVE';
-                            if (!isTradeActive && trade.isSmallWin) { box.style.display = 'none'; return; }
+                                const isTradeActive = trade.status === 'ACTIVE';
+                                if (!isTradeActive && trade.isSmallWin) { box.style.display = 'none'; return; }
 
-                            const priceToUse = isTradeActive ? (curP || trade.entryPrice) : (trade.closePrice || trade.entryPrice);
-                            let xEntry = timeScale.timeToCoordinate(trade.startTime);
-                            let xExit = timeScale.timeToCoordinate(isTradeActive ? (Date.now()/1000) : (trade.closeTime || (Date.now()/1000)));
+                                const priceToUse = isTradeActive ? (curP || trade.entryPrice) : (trade.closePrice || trade.entryPrice);
+                                let xEntry = timeScale.timeToCoordinate(trade.startTime);
+                                let xExit = timeScale.timeToCoordinate(isTradeActive ? (Date.now()/1000) : (trade.closeTime || (Date.now()/1000)));
 
-                            if (xEntry !== null && xExit !== null) {
-                                const yEntry = series.priceToCoordinate(trade.entryPrice);
-                                const yClose = series.priceToCoordinate(priceToUse);
-                                
-                                if (yEntry !== null && yClose !== null) {
-                                    box.style.display = 'flex'; 
-                                    let left = Math.min(xEntry, xExit); let width = Math.max(Math.abs(xExit - xEntry), 40); 
-                                    let yMin = Math.min(yEntry, yClose); let yMax = Math.max(yEntry, yClose);
-                                    let height = yMax - yMin; let top = yMin;
-                                    if (height < 36) { top -= (36 - height) / 2; height = 36; }
+                                if (xEntry !== null && xExit !== null) {
+                                    const yEntry = series.priceToCoordinate(trade.entryPrice);
+                                    const yClose = series.priceToCoordinate(priceToUse);
                                     
-                                    box.style.left = `${left}px`; box.style.width = `${width}px`; box.style.top = `${top}px`; box.style.height = `${height}px`;
-                                    
-                                    const entryDot = box.querySelector('.entry-dot'); const exitDot = box.querySelector('.exit-dot');
-                                    if (entryDot && exitDot) {
-                                        entryDot.style.top = `${yEntry - top}px`; exitDot.style.top = `${yClose - top}px`;
-                                        entryDot.className = `entry-dot absolute w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] -ml-1 -mt-1 left-0 z-30 ${trade.isLong ? 'bg-[#e9d5ff] text-[#e9d5ff]' : 'bg-rose-500 text-rose-500'}`;
-                                        if (!isTradeActive) {
-                                            exitDot.style.display = 'block'; const isLoss = trade.result === 'LOSS';
-                                            exitDot.className = `exit-dot absolute w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] -mr-1 -mt-1 right-0 z-30 ${isLoss ? 'bg-rose-500 text-rose-500' : 'bg-emerald-400 text-emerald-400'}`;
-                                        } else {
-                                            exitDot.style.display = 'block'; exitDot.className = `exit-dot absolute w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] -mr-1 -mt-1 right-0 z-30 bg-purple-400 text-purple-400 animate-ping`;
+                                    if (yEntry !== null && yClose !== null) {
+                                        box.style.display = 'flex'; 
+                                        let left = Math.min(xEntry, xExit); let width = Math.max(Math.abs(xExit - xEntry), 40); 
+                                        let yMin = Math.min(yEntry, yClose); let yMax = Math.max(yEntry, yClose);
+                                        let height = yMax - yMin; let top = yMin;
+                                        if (height < 36) { top -= (36 - height) / 2; height = 36; }
+                                        
+                                        box.style.left = `${left}px`; box.style.width = `${width}px`; box.style.top = `${top}px`; box.style.height = `${height}px`;
+                                        
+                                        const entryDot = box.querySelector('.entry-dot'); const exitDot = box.querySelector('.exit-dot');
+                                        if (entryDot && exitDot) {
+                                            entryDot.style.top = `${yEntry - top}px`; exitDot.style.top = `${yClose - top}px`;
+                                            entryDot.className = `entry-dot absolute w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] -ml-1 -mt-1 left-0 z-30 ${trade.isLong ? 'bg-[#e9d5ff] text-[#e9d5ff]' : 'bg-rose-500 text-rose-500'}`;
+                                            if (!isTradeActive) {
+                                                exitDot.style.display = 'block'; const isLoss = trade.result === 'LOSS';
+                                                exitDot.className = `exit-dot absolute w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] -mr-1 -mt-1 right-0 z-30 ${isLoss ? 'bg-rose-500 text-rose-500' : 'bg-emerald-400 text-emerald-400'}`;
+                                            } else {
+                                                exitDot.style.display = 'block'; exitDot.className = `exit-dot absolute w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] -mr-1 -mt-1 right-0 z-30 bg-purple-400 text-purple-400 animate-ping`;
+                                            }
                                         }
                                     }
-                                }
-                            } else { box.style.display = 'none'; }
+                                } else { box.style.display = 'none'; }
+                            } catch (err) { }
                         });
 
                         const pauseBoxes = overlayRef.current.querySelectorAll('.pause-glass-box');
                         pauseBoxes.forEach((box, i) => {
-                            const p = pauses[i];
-                            if (!p) { box.style.display = 'none'; return; }
-                            let xStart = timeScale.timeToCoordinate(p.startTime); let xEnd = timeScale.timeToCoordinate(p.endTime);
-                            if (xStart !== null && xEnd !== null) {
-                                box.style.display = 'flex'; box.style.left = `${Math.min(xStart, xEnd)}px`; box.style.width = `${Math.max(Math.abs(xEnd - xStart), 60)}px`;
-                                box.style.top = '0px'; box.style.height = '100%';
-                            } else { box.style.display = 'none'; }
+                            try {
+                                const p = pauses[i];
+                                if (!p) { box.style.display = 'none'; return; }
+                                let xStart = timeScale.timeToCoordinate(p.startTime); let xEnd = timeScale.timeToCoordinate(p.endTime);
+                                if (xStart !== null && xEnd !== null) {
+                                    box.style.display = 'flex'; box.style.left = `${Math.min(xStart, xEnd)}px`; box.style.width = `${Math.max(Math.abs(xEnd - xStart), 60)}px`;
+                                    box.style.top = '0px'; box.style.height = '100%';
+                                } else { box.style.display = 'none'; }
+                            } catch (err) { }
                         });
 
                         const tpZone = overlayRef.current.querySelector('#active-tp-zone');
@@ -467,7 +498,6 @@
                             
                             if (yEntry !== null && ySL !== null && yTP !== null && xEntry !== null) {
                                 const left = Math.max(0, xEntry); const width = Math.max(150, overlayRef.current.clientWidth - left);
-                                // ВИЗУАЛИЗАЦИЯ: Узкие мерцающие зоны SL и TP (14px)
                                 if (!activeTrade.isPartialClosed) {
                                     tpZone.style.display = 'flex'; tpZone.style.left = `${left}px`; tpZone.style.width = `${width}px`; tpZone.style.top = `${yTP - 7}px`;
                                     tpZone.className = `glass-zone absolute z-[5] flex justify-center items-center overflow-hidden ${activeTrade.isLong ? 'glass-zone-tp-long' : 'glass-zone-tp-short'}`;
@@ -565,12 +595,12 @@
             </a>
         ));
 
-        // MAIN APP COMPONENT
         const App = () => {
             const [isStarted, setIsStarted] = useState(false);
             const [appPhase, setAppPhase] = useState('ОЖИДАНИЕ ЗАПУСКА...');
             const [appState, setAppState] = useState('INIT'); 
             const [currentTF, setCurrentTF] = useState(MAIN_TIMEFRAME); 
+            const [currentRegime, setCurrentRegime] = useState('RANGING');
             const [tradesHistory, setTradesHistory] = useState([]);
             const [pausesHistory, setPausesHistory] = useState([]);
             const [activeTrade, setActiveTrade] = useState(null);
@@ -596,6 +626,7 @@
             const peakBalanceRef = useRef(INITIAL_BALANCE); 
             const maxDDRef = useRef(0); 
             const currentZoneRef = useRef(null);
+            const currentRegimeRef = useRef('RANGING');
             const chartContainerRef = useRef(null);
             const chartInstance = useRef(null);
             const candleSeries = useRef(null);
@@ -765,11 +796,20 @@
                 if (!chartContainerRef.current) return false;
                 if (chartInstance.current) return true;
 
+                // БЕЗОПАСНАЯ ИНИЦИАЛИЗАЦИЯ (добавлены проверки и попытки для lightweight-charts)
+                let attempts = 0;
+                while (!window.LightweightCharts && attempts < 10) {
+                    await new Promise(r => setTimeout(r, 500));
+                    attempts++;
+                }
+
+                if (!window.LightweightCharts) {
+                    console.error("LightweightCharts не найден (timeout).");
+                    setChartError(true); 
+                    return false; 
+                }
+
                 try {
-                    if (!window.LightweightCharts) {
-                        console.warn("LightweightCharts не найден. График не будет отрисован.");
-                        setChartError(true); return false; 
-                    }
                     if (chartContainerRef.current.clientWidth === 0 || chartContainerRef.current.clientHeight === 0) { return false; }
 
                     const chart = window.LightweightCharts.createChart(chartContainerRef.current, {
@@ -835,13 +875,15 @@
                 setAppPhase('ЧЕСТНЫЙ БЭКТЕСТ (1H ФОКУС): ЗАГРУЗКА...');
                 
                 const fetchWithRetry = async (sym, cnt, int) => {
-                    while(engineActive.current) {
+                    let retries = 0;
+                    while(engineActive.current && retries < 5) {
                         try {
                             const data = await ScannerAPI.getCandles(sym, cnt, int);
                             if (data && data.length > 50) return data;
                         } catch(e) {}
-                        setAppPhase('ОШИБКА АПИ. ПОВТОРНАЯ ПОПЫТКА...');
+                        setAppPhase(`ОШИБКА АПИ. ПОВТОРНАЯ ПОПЫТКА ${retries + 1}/5...`);
                         await sleep(3000);
+                        retries++;
                     }
                     return [];
                 };
@@ -868,11 +910,13 @@
                 const atr1H = calcATRSeries(data1h, 14);
                 const trend1H = calcTrendSeries(data1h, 20);
                 const trend4H = calcTrendSeries(data4h, 20);
+                const regime1H = calcMarketRegime(data1h, 20, 50);
 
                 const lMap1H = new Map(liq1H.map(i => [i.time, {upper: i.upper, lower: i.lower}]));
                 const aMap1H = new Map(atr1H.map(i => [i.time, i.value]));
                 const tMap1H = new Map(trend1H.map(i => [i.time, i.trend]));
                 const tMap4H = new Map(trend4H.map(i => [i.time, i.trend]));
+                const rMap1H = new Map(regime1H.map(i => [i.time, i.regime]));
 
                 let histTrades = []; let simBalance = propBalanceRef.current; let simPeak = simBalance;
                 const startIdx = Math.max(50, data15m.length - 2880); 
@@ -897,7 +941,7 @@
                     if (tStamp < btEngineState.securityPauseUntil) continue;
                     if (btEngineState.focus1HMode && tStamp > btEngineState.securityPauseUntil) { btEngineState.focus1HMode = false; }
 
-                    const sig = evaluateSignalEngineHybrid(data15m, i, lMap1H, aMap1H, tMap1H, tMap4H, btEngineState);
+                    const sig = evaluateSignalEngineHybrid(data15m, i, lMap1H, aMap1H, tMap1H, tMap4H, rMap1H, btEngineState);
                     
                     if (sig.valid) {
                         const riskAmount = simBalance * RISK_PERCENT; 
@@ -935,7 +979,6 @@
                                     isPartialClosed = true; rPart1 = Math.abs(trade.level1R - trade.entryPrice) / trade.R_value; trailingSL = trade.entryPrice; 
                                 }
                                 if (isPartialClosed && j >= i + 8) {
-                                    // Трейлинг по 8 свечам (расширенный воздух)
                                     let lowest8 = Math.min(
                                         c.low, prevC.low, 
                                         data15m[j-2]?.low || prevC.low, data15m[j-3]?.low || prevC.low, 
@@ -998,7 +1041,7 @@
                         let isIgnored = false;
                         if (trade.isSmallWin) { isIgnored = true; trade.pnl = 0; ignoredSmallWins++; }
 
-                        // РЕВЕРС СТРОГО ПОСЛЕ ДВУХ УБЫТКОВ + ПАУЗА
+                        // РЕВЕРС СТРОГО ПОСЛЕ ДВУХ УБЫТКОВ
                         if (!isIgnored) {
                             histTrades.push(trade); simBalance += pnl;
                             if (simBalance > simPeak) simPeak = simBalance;
@@ -1014,14 +1057,14 @@
                                     btEngineState.forcedDirection = null; 
                                     btEngineState.consecutiveLosses = 0;
                                 } else if (btEngineState.consecutiveLosses >= 2) {
-                                    // ПАУЗА 1.5 ЧАСА. После паузы - реверс
+                                    // 2 УБЫТКА ПОДРЯД: ПАУЗА 1.5 ЧАСА + РЕВЕРС
                                     const pEnd = closeTime + 5400; btEngineState.securityPauseUntil = pEnd; 
                                     btEngineState.pauses.push({ startTime: closeTime, endTime: pEnd, type: 'SECURITY' });
                                     btEngineState.forcedDirection = trade.isLong ? 'SHORT' : 'LONG';
                                     btEngineState.consecutiveLosses = 0; 
-                                } else { 
-                                    // 1й убыток -> ищем дальше по тренду
-                                    btEngineState.forcedDirection = null;
+                                } else if (btEngineState.consecutiveLosses === 1) { 
+                                    // 1-Й УБЫТОК: ПРИНУДИТЕЛЬНО ИЩЕМ В ТОМ ЖЕ НАПРАВЛЕНИИ
+                                    btEngineState.forcedDirection = trade.isLong ? 'LONG' : 'SHORT';
                                 }
                             } else { 
                                 // WIN -> СБРОС СЧЕТЧИКОВ
@@ -1055,7 +1098,7 @@
                 // ГОЛОС ПОСЛЕ БЭКТЕСТА (ПО ТЗ)
                 const totalCount = qualityCount + losses;
                 const resWord = pnlDollars >= 0 ? 'плюс' : 'минус';
-                enqueueSpeech(`Бэктест завершён. Всего сделок: ${totalCount}. Плюсовых: ${qualityCount}. Минусовых: ${losses}. Итоговый результат: ${resWord} ${Math.abs(Math.round(pnlDollars))} долларов.`, 'bt-stats', 0);
+                enqueueSpeech(`Бэктест завершён. Общее количество сделок: ${totalCount}. Из них прибыльных: ${qualityCount}, убыточных: ${losses}. Итоговый результат: ${resWord} ${Math.abs(Math.round(pnlDollars))} долларов.`, 'bt-stats', 0);
                 
                 const winningTrades = histTrades.filter(t => t.pnl > 0);
                 if (winningTrades.length > 0) {
@@ -1156,10 +1199,15 @@
                         const freshAtr1H = calcATRSeries(liveData1h, 14);
                         const freshTrend1H = calcTrendSeries(liveData1h, 20);
                         const freshTrend4H = calcTrendSeries(liveData4h, 20);
+                        const freshRegime1H = calcMarketRegime(liveData1h, 20, 50); // РАСЧЕТ РЕЖИМА (LIVE)
 
                         let t1H = getLatestClosedHTFOpenTime(nowSec, 3600);
                         const lMap1H = new Map(freshLiq1H.map(i => [i.time, {upper: i.upper, lower: i.lower}]));
                         const aMap1H = new Map(freshAtr1H.map(i => [i.time, i.value]));
+                        const rMap1H = new Map(freshRegime1H.map(i => [i.time, i.regime]));
+                        
+                        let liveRegime = rMap1H.get(t1H) || rMap1H.get(t1H - 3600) || 'RANGING';
+                        if (currentRegimeRef.current !== liveRegime) { currentRegimeRef.current = liveRegime; setCurrentRegime(liveRegime); }
                         
                         const z = lMap1H.get(t1H) || lMap1H.get(t1H - 3600);
                         const a = aMap1H.get(t1H) || aMap1H.get(t1H - 3600);
@@ -1206,7 +1254,7 @@
                         if (!activeT) {
                             if (evalCandleTime > lastEvaluatedCandleTime) {
                                 const tMap1H = new Map(freshTrend1H.map(i => [i.time, i.trend])); const tMap4H = new Map(freshTrend4H.map(i => [i.time, i.trend]));
-                                const liveSignal = evaluateSignalEngineHybrid(liveData15m, evalIdx, lMap1H, aMap1H, tMap1H, tMap4H, engineStateRef.current);
+                                const liveSignal = evaluateSignalEngineHybrid(liveData15m, evalIdx, lMap1H, aMap1H, tMap1H, tMap4H, rMap1H, engineStateRef.current);
                                 
                                 if (liveSignal && liveSignal.valid) {
                                     lastEvaluatedCandleTime = evalCandleTime; 
@@ -1324,7 +1372,7 @@
                                     engineStateRef.current.consecutiveLosses = 0; 
                                     engineStateRef.current.forcedDirection = null; // Сбрасываем форс
                                 } else if (result === 'LOSS') {
-                                    // ГОЛОС ЗАКРЫТИЯ ПО СТОПУ
+                                    // ИЗМЕНЕНО: Реверс только после двух убытков подряд в LIVE
                                     playSound('loss'); enqueueSpeech(`Сработал стоп-лосс. Закрываем позицию.`, `sl-announce-${activeT.id}`, 0);
                                     engineStateRef.current.consecutiveLosses += 1; 
                                     engineStateRef.current.dailyLosses += 1;
@@ -1339,8 +1387,8 @@
                                         engineStateRef.current.securityPauseUntil = pEnd; setPausesHistory(prev => [...prev, { startTime: nowStamp, endTime: pEnd, type: 'SECURITY' }]);
                                         engineStateRef.current.forcedDirection = activeT.isLong ? 'SHORT' : 'LONG'; engineStateRef.current.consecutiveLosses = 0; engineStateRef.current.focus1HMode = true;
                                         await sleep(2000); enqueueSpeech(`Два убытка подряд. Включаем паузу на полтора часа. После паузы ищем противоположный сигнал.`, `sec-pause-${activeT.id}`, 0);
-                                    } else { 
-                                        engineStateRef.current.forcedDirection = null; // 1-Й УБЫТОК: ОСТАЕМСЯ НА БАЗОВЫХ НАСТРОЙКАХ
+                                    } else if (engineStateRef.current.consecutiveLosses === 1) { 
+                                        engineStateRef.current.forcedDirection = activeT.isLong ? 'LONG' : 'SHORT'; // 1-Й УБЫТОК: ПРИНУДИТЕЛЬНО ПРОДОЛЖАЕМ ТРЕНД
                                     }
                                 }
 
@@ -1377,7 +1425,7 @@
                             <Cpu size={56} className="text-purple-400 mb-6 drop-shadow-[0_0_20px_rgba(168,85,247,0.8)] animate-pulse" />
                             <h2 className="text-fuchsia-400 tracking-[0.5em] text-xs font-black uppercase mb-3 oswald-font">Developed by Slava Gordeev</h2>
                             <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-fuchsia-200 to-indigo-300 tracking-[0.15em] mb-6 oswald-font drop-shadow-md">UPSCALE.TRADE HYBRID</h1>
-                            <p className="text-sm text-slate-300 mb-10 font-medium leading-relaxed bg-black/30 p-4 rounded-xl border border-white/5">Классическая 1H стратегия. Реверс только после 2 убытков. Эффективный трейлинг. Честный бэктест.</p>
+                            <p className="text-sm text-slate-300 mb-10 font-medium leading-relaxed bg-black/30 p-4 rounded-xl border border-white/5">Классическая 1H стратегия. Реверс только после 2 убытков. Динамический Тейк-Профит. Честный бэктест.</p>
                             <button onClick={handleStart} className="w-full py-5 bg-gradient-to-r from-purple-600/80 to-indigo-700/80 backdrop-blur-xl border-t border-white/40 border border-white/20 text-white tracking-[0.3em] font-black rounded-full transition-all duration-300 shadow-[0_15px_30px_rgba(168,85,247,0.5),inset_0_2px_15px_rgba(255,255,255,0.3)] uppercase oswald-font hover:shadow-[0_25px_50px_rgba(168,85,247,0.8),inset_0_4px_20px_rgba(255,255,255,0.5)] hover:scale-[1.02]">АВТОРИЗАЦИЯ И ЗАПУСК</button>
                         </div>
                     </div>
@@ -1452,6 +1500,7 @@
                             <div className="glass-panel-heavy rounded-2xl flex flex-col sm:flex-row items-center justify-between px-8 py-4 shrink-0 gap-6">
                                 <div className="flex items-center gap-6 w-full sm:w-auto justify-between sm:justify-start">
                                     <div className="flex flex-col"><span className="text-[10px] font-black text-purple-300/70 tracking-[0.2em] uppercase mb-1">Режим Системы</span><div className="px-4 py-1.5 bg-black/50 border border-purple-500/40 text-xs font-mono font-bold rounded-lg shadow-inner text-fuchsia-300">{appState}</div></div>
+                                    <div className="flex flex-col items-center"><span className="text-[10px] font-black text-purple-300/70 tracking-[0.2em] uppercase mb-1">Режим Рынка</span><div className={`px-5 py-1.5 ${currentRegime === 'BULLISH' ? 'bg-gradient-to-r from-emerald-800 to-emerald-600' : currentRegime === 'BEARISH' ? 'bg-gradient-to-r from-rose-800 to-rose-600' : 'bg-gradient-to-r from-slate-800 to-slate-600'} border border-white/20 text-[11px] font-black rounded-lg shadow-inner text-white transition-colors`}>{currentRegime}</div></div>
                                     <div className="flex flex-col items-center"><span className="text-[10px] font-black text-purple-300/70 tracking-[0.2em] uppercase mb-1">Active Timeframe</span><div className={`px-5 py-1.5 bg-gradient-to-r ${engineStateRef.current.focus1HMode ? 'from-amber-600 to-rose-700 animate-pulse' : 'from-purple-900 to-indigo-900'} border border-purple-400/50 text-[11px] font-black rounded-lg shadow-[0_0_15px_rgba(168,85,247,0.4)] text-white transition-colors`}>{currentTF}</div></div>
                                 </div>
                                 <div className="flex bg-black/40 rounded-2xl border border-white/10 divide-x divide-white/10 shadow-inner hidden sm:flex">
@@ -1533,25 +1582,31 @@
 
         const RootApp = () => ( <ErrorBoundary><App /></ErrorBoundary> );
 
-        window.addEventListener('load', () => {
+        // БЕЗОПАСНАЯ ИНИЦИАЛИЗАЦИЯ REACT (Игнорируем window.onload для babel-standalone)
+        const startApp = () => {
             try {
                 const rootElement = document.getElementById('root');
+                if (!rootElement) return;
+                
                 const root = window.ReactDOM.createRoot(rootElement);
-                root.render(window.React.createElement(RootApp));
-                console.log("React приложение успешно запущено.");
+                root.render(<RootApp />);
             } catch (error) {
                 console.error("Критическая ошибка запуска React:", error);
-                document.getElementById('root').innerHTML = `
-                    <div style="height:100vh; width:100vw; background:#030108; color:#f43f5e; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:monospace; text-align:center; padding:20px;">
-                        <h2 style="font-size:24px; font-weight:bold; margin-bottom:10px;">СИСТЕМНЫЙ СБОЙ ИНИЦИАЛИЗАЦИИ</h2>
-                        <p style="max-width:600px; color:#fecdd3;">${error.message}</p>
-                    </div>
-                `;
+                const r = document.getElementById('root');
+                if (r) {
+                    r.innerHTML = `
+                        <div style="height:100vh; width:100vw; background:#030108; color:#f43f5e; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:monospace; text-align:center; padding:20px;">
+                            <h2 style="font-size:24px; font-weight:bold; margin-bottom:10px;">СИСТЕМНЫЙ СБОЙ ИНИЦИАЛИЗАЦИИ</h2>
+                            <p style="max-width:600px; color:#fecdd3;">${error.message}</p>
+                        </div>
+                    `;
+                }
             }
-        });
+        };
+
+        // Запуск с небольшой задержкой гарантирует, что DOM готов после отработки Babel
+        setTimeout(startApp, 50);
+
     </script>
 </body>
 </html>
-
-
-```
