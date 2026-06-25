@@ -55,14 +55,15 @@
         /* Subtle Pulse Animations for Glass Boxes */
         @keyframes subtle-pulse { 0% { opacity: 0.7; filter: brightness(1); box-shadow: 0 0 8px currentColor; } 100% { opacity: 1; filter: brightness(1.2); box-shadow: 0 0 15px currentColor, inset 0 0 5px currentColor; } }
         
-        .glass-box-tp { height: 14px !important; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.6); backdrop-filter: blur(4px); border-radius: 4px; color: #10b981; animation: subtle-pulse 2.5s infinite alternate ease-in-out; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: bold; overflow: hidden; z-index: 6; }
+        .glass-box-tp { height: 14px !important; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.6); backdrop-filter: blur(4px); border-radius: 4px; color: #10b981; animation: subtle-pulse 2.5s infinite alternate ease-in-out; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: bold; overflow: hidden; z-index: 6; transition: all 0.3s; }
         .glass-box-tp.tp-short { background: rgba(225, 29, 72, 0.15); border-color: rgba(225, 29, 72, 0.6); color: #e11d48; }
         .glass-box-tp.tp-reached { opacity: 0.3 !important; animation: none !important; filter: grayscale(1) brightness(0.5); }
         
         .glass-box-sl { height: 14px !important; background: rgba(245, 158, 11, 0.15); border: 1px dashed rgba(245, 158, 11, 0.8); backdrop-filter: blur(4px); border-radius: 4px; color: #f59e0b; animation: subtle-pulse 2s infinite alternate ease-in-out; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: bold; z-index: 6; }
         
-        .zone-interest-res { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.6); backdrop-filter: blur(4px); border-radius: 6px; color: #fca5a5; animation: subtle-pulse 3s infinite alternate ease-in-out; box-shadow: inset 0 0 20px rgba(239, 68, 68, 0.2); }
-        .zone-interest-sup { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.6); backdrop-filter: blur(4px); border-radius: 6px; color: #6ee7b7; animation: subtle-pulse 3s infinite alternate ease-in-out; box-shadow: inset 0 0 20px rgba(16, 185, 129, 0.2); }
+        /* ОБНОВЛЁННЫЕ ЗОНЫ ИНТЕРЕСА (Градиентные горизонтальные полосы) */
+        .zone-interest-res { background: linear-gradient(to right, rgba(239, 68, 68, 0.05), rgba(239, 68, 68, 0.25), rgba(239, 68, 68, 0.05)); border-top: 1px solid rgba(239, 68, 68, 0.6); border-bottom: 1px solid rgba(239, 68, 68, 0.6); backdrop-filter: blur(2px); border-radius: 2px; color: #fca5a5; animation: subtle-pulse 3s infinite alternate ease-in-out; }
+        .zone-interest-sup { background: linear-gradient(to right, rgba(16, 185, 129, 0.05), rgba(16, 185, 129, 0.25), rgba(16, 185, 129, 0.05)); border-top: 1px solid rgba(16, 185, 129, 0.6); border-bottom: 1px solid rgba(16, 185, 129, 0.6); backdrop-filter: blur(2px); border-radius: 2px; color: #6ee7b7; animation: subtle-pulse 3s infinite alternate ease-in-out; }
 
         .pyramid-container { perspective: 800px; width: 160px; height: 160px; position: relative; z-index: 10; }
         .pyramid-wrapper { width: 100%; height: 100%; transform-style: preserve-3d; animation: spin-pyramid-3d 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite; position: relative; transform: rotateX(15deg); }
@@ -150,11 +151,11 @@
         const RISK_PERCENT = 0.0075; 
         const MAIN_TIMEFRAME = '1H PURE SCALPING (30D)';
         const MAX_DAILY_DD = 0.025; 
-        const MIN_SCORE = 76; 
+        const MIN_SCORE = 76; // БАЗОВЫЙ ПОРОГ ДЛЯ ВХОДА (Слегка ослаблен)
         const MIN_QUALITY_PROFIT = 0.80; 
 
-        // Тейк-профит уровни для визуализации и озвучки (в процентах)
-        const TP_VISUAL_LEVELS = [0.9, 1.0, 3.0, 5.0];
+        // ИСПРАВЛЕНИЕ: Обновлённые уровни Тейк-Профит для оповещений
+        const TP_VISUAL_LEVELS = [0.9, 3.0, 5.0];
 
         const FALLBACK_NEWS = [
             "Биткоин тестирует ключевые уровни сопротивления на фоне высокого спроса.",
@@ -309,6 +310,11 @@
 
             if (!zones || !cAtr || cTrend === undefined) return { valid: false, score: 0 };
 
+            // ИСПРАВЛЕНИЕ: Ослабленная динамическая строгость (76 -> 78 -> 80)
+            let currentMinScore = MIN_SCORE;
+            if (engineState.consecutiveLosses === 1) currentMinScore = 78;
+            else if (engineState.consecutiveLosses >= 2) currentMinScore = 80;
+
             const cUpper = zones.upper; const cLower = zones.lower;
             const distTop = cUpper - curr15m.close; const distBot = curr15m.close - cLower;
             
@@ -341,10 +347,10 @@
 
             let isLong = false; let isShort = false; let patternName = ''; let finalScore = 0;
             
-            if (shortConfluence >= MIN_SCORE && engineState.forcedDirection !== 'LONG') {
+            if (shortConfluence >= currentMinScore && engineState.forcedDirection !== 'LONG') {
                 isShort = true; finalScore = shortConfluence;
                 patternName = '1H ZONE SWEEP + REJECTION';
-            } else if (longConfluence >= MIN_SCORE && engineState.forcedDirection !== 'SHORT') {
+            } else if (longConfluence >= currentMinScore && engineState.forcedDirection !== 'SHORT') {
                 isLong = true; finalScore = longConfluence;
                 patternName = '1H ZONE SWEEP + REJECTION';
             }
@@ -371,13 +377,18 @@
             }
             
             const tpDist = entryPrice * (targetPercentValue / 100);
+            
+            // ИСПРАВЛЕНИЕ: Обязательный фильтр MIN POTENTIAL >= 1.2R
+            const rPotential = tpDist / riskDist;
+            if (rPotential < 1.2) return { valid: false, score: 0 };
+
             const levelTarget = isLong ? entryPrice + tpDist : entryPrice - tpDist;
             const level1R = isLong ? entryPrice + riskDist : entryPrice - riskDist;
 
             return { 
                 valid: true, isLong, isShort, signalType: patternName, score: Math.min(100, finalScore), 
                 signalTime: curr15m.time, entryPrice, slPrice, level1R, levelTarget, R_value: riskDist,
-                tf: '15M', cUpper, cLower, logicalIndex: evalIdx, targetPercent: targetPercentValue, decision: decision
+                tf: '15M', cUpper, cLower, atr: cAtr, logicalIndex: evalIdx, targetPercent: targetPercentValue, decision: decision
             };
         }
 
@@ -428,32 +439,36 @@
                         const timeScale = chart.timeScale();
                         if (!timeScale) return;
 
-                        // РЕНДЕРИНГ ПЕРМАНЕНТНЫХ ЗОН ЛИКВИДНОСТИ 1H
-                        const liqResZone = overlayRef.current.querySelector('#liq-res-zone');
-                        const liqSupZone = overlayRef.current.querySelector('#liq-sup-zone');
-
-                        if (activeLiquidity) {
-                            const upperLimitY = series.priceToCoordinate(activeLiquidity.upper + activeLiquidity.atr * 3.5);
-                            const upperBaseY = series.priceToCoordinate(activeLiquidity.upper - activeLiquidity.atr * 1.5);
-                            if (upperLimitY !== null && upperBaseY !== null) {
-                                liqResZone.style.display = 'block';
-                                liqResZone.style.top = `${Math.min(upperLimitY, upperBaseY)}px`;
-                                liqResZone.style.height = `${Math.max(1, Math.abs(upperBaseY - upperLimitY))}px`;
-                            } else { liqResZone.style.display = 'none'; }
-
-                            const lowerBaseY = series.priceToCoordinate(activeLiquidity.lower + activeLiquidity.atr * 1.5);
-                            const lowerLimitY = series.priceToCoordinate(activeLiquidity.lower - activeLiquidity.atr * 3.5);
-                            if (lowerBaseY !== null && lowerLimitY !== null) {
-                                liqSupZone.style.display = 'block';
-                                liqSupZone.style.top = `${Math.min(lowerBaseY, lowerLimitY)}px`;
-                                liqSupZone.style.height = `${Math.max(1, Math.abs(lowerLimitY - lowerBaseY))}px`;
-                            } else { liqSupZone.style.display = 'none'; }
-                        } else {
-                            if(liqResZone) liqResZone.style.display = 'none';
-                            if(liqSupZone) liqSupZone.style.display = 'none';
-                        }
-
+                        // ИСПРАВЛЕНИЕ: ИСТОРИЧЕСКИЕ ЗОНЫ ИНТЕРЕСА (Узкие горизонтальные полосы)
                         const allTrades = replayTrade ? [...trades, replayTrade] : trades;
+                        const histZonesContainer = overlayRef.current.querySelectorAll('.historical-zone');
+                        
+                        allTrades.forEach((trade, i) => {
+                            const zoneDiv = histZonesContainer[i];
+                            if (zoneDiv && trade.historicalZone) {
+                                const z = trade.historicalZone;
+                                let xStart = timeScale.timeToCoordinate(z.startTime);
+                                let xEnd = timeScale.timeToCoordinate(z.endTime);
+                                const yTop = series.priceToCoordinate(z.top);
+                                const yBot = series.priceToCoordinate(z.bottom);
+
+                                if (xStart !== null && xEnd !== null && yTop !== null && yBot !== null) {
+                                    let left = Math.min(xStart, xEnd); 
+                                    // Узкая временная полоса вокруг сигнала, но достаточно широкая для видимости
+                                    let width = Math.max(20, Math.abs(xEnd - xStart)); 
+                                    let top = Math.min(yTop, yBot); 
+                                    let height = Math.abs(yBot - yTop);
+                                    
+                                    // Ограничиваем высоту, чтобы не перекрывать полграфика, если ATR огромный
+                                    height = Math.max(4, height);
+
+                                    zoneDiv.style.display = 'flex';
+                                    zoneDiv.style.left = `${left}px`; zoneDiv.style.width = `${width}px`;
+                                    zoneDiv.style.top = `${top}px`; zoneDiv.style.height = `${height}px`;
+                                } else { zoneDiv.style.display = 'none'; }
+                            }
+                        });
+
                         const curP = currentPriceRef?.current;
                         
                         const tradeBoxes = overlayRef.current.querySelectorAll('.trade-glass-box');
@@ -509,15 +524,32 @@
                             } catch (err) { }
                         });
 
-                        // АКТИВНАЯ ЗОНА ИНТЕРЕСА (УЗКИЙ СТЕКЛЯННЫЙ БОКС ПРИ ПОДХОДЕ)
+                        // ИСПРАВЛЕНИЕ: LIVE ЗОНА ИНТЕРЕСА (узкая горизонтальная полоса)
                         const interestZoneBox = overlayRef.current.querySelector('#interest-zone-box');
                         if (zoneInfo && isFocusMode && interestZoneBox) {
-                            const zTop = series.priceToCoordinate(zoneInfo.top); const zBot = series.priceToCoordinate(zoneInfo.bottom);
-                            if (zTop !== null && zBot !== null) {
+                            // Делаем полосу широкой, чтобы она чётко была видна на графике как уровень (от -40 до +10 свечей)
+                            let xStart = timeScale.timeToCoordinate(zoneInfo.time - 40 * 900);
+                            let xEnd = timeScale.timeToCoordinate(zoneInfo.time + 10 * 900);
+                            
+                            // fallback, если время вне видимости
+                            if (xStart === null && timeScale.getVisibleLogicalRange()) xStart = 0;
+                            if (xEnd === null && timeScale.getVisibleLogicalRange()) xEnd = overlayRef.current.clientWidth;
+
+                            const zTop = series.priceToCoordinate(zoneInfo.top); 
+                            const zBot = series.priceToCoordinate(zoneInfo.bottom);
+                            
+                            if (zTop !== null && zBot !== null && xStart !== null && xEnd !== null) {
                                 interestZoneBox.style.display = 'flex'; 
-                                const top = Math.min(zTop, zBot); const height = Math.max(12, Math.abs(zBot - zTop)); // Узкий бокс
+                                const top = Math.min(zTop, zBot); 
+                                let height = Math.abs(zBot - zTop);
+                                height = Math.max(4, height); // Узкий стеклянный бокс
+
+                                const left = Math.max(0, Math.min(xStart, xEnd)); 
+                                const width = Math.max(20, Math.abs(xEnd - xStart));
+                                
+                                interestZoneBox.style.left = `${left}px`; interestZoneBox.style.width = `${width}px`;
                                 interestZoneBox.style.top = `${top}px`; interestZoneBox.style.height = `${height}px`;
-                                interestZoneBox.className = `absolute z-[5] pointer-events-none w-full left-0 ${zoneInfo.type === 'RESISTANCE' ? 'zone-interest-res' : 'zone-interest-sup'}`;
+                                interestZoneBox.className = `absolute z-[5] pointer-events-none rounded opacity-90 ${zoneInfo.type === 'RESISTANCE' ? 'zone-interest-res' : 'zone-interest-sup'}`;
                             } else { interestZoneBox.style.display = 'none'; }
                         } else if (interestZoneBox) { interestZoneBox.style.display = 'none'; }
 
@@ -573,12 +605,12 @@
 
             return (
                 <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden" ref={overlayRef}>
-                    <div id="liq-res-zone" className="absolute left-0 w-full bg-rose-500/10 border-b border-t border-rose-500/30 z-[1] pointer-events-none" style={{display: 'none'}}>
-                        <div className="text-rose-400 text-[9px] font-mono font-bold absolute bottom-0 right-2">LIQUIDITY SWEEP (SHORT ZONE)</div>
-                    </div>
-                    <div id="liq-sup-zone" className="absolute left-0 w-full bg-emerald-500/10 border-b border-t border-emerald-500/30 z-[1] pointer-events-none" style={{display: 'none'}}>
-                        <div className="text-emerald-400 text-[9px] font-mono font-bold absolute top-0 right-2">LIQUIDITY SWEEP (LONG ZONE)</div>
-                    </div>
+                    {/* ИСТОРИЧЕСКИЕ ЗОНЫ ИНТЕРЕСА */}
+                    {allTradesToRender.map((trade, i) => (
+                        <div key={`hz_${trade.id || i}`} className={`historical-zone absolute z-[2] pointer-events-none rounded ${trade.historicalZone?.type === 'SUPPORT' ? 'zone-interest-sup opacity-40 border-emerald-500/30' : 'zone-interest-res opacity-40 border-rose-500/30'}`} style={{display: 'none', flexDirection: 'column', justifyContent: 'center'}}>
+                            <div className={`text-[8px] font-mono font-bold pl-1 ${trade.historicalZone?.type === 'SUPPORT' ? 'text-emerald-400' : 'text-rose-400'}`}>{trade.historicalZone?.type === 'SUPPORT' ? 'SUP (HIST)' : 'RES (HIST)'}</div>
+                        </div>
+                    ))}
                     
                     {pauses.map((p, i) => (
                         <div key={`pause_${i}`} className="pause-glass-box absolute z-[5] flex flex-col items-center justify-center pointer-events-none" style={{display: 'none'}}>
@@ -588,9 +620,9 @@
                         </div>
                     ))}
                     
-                    {/* Зона интереса (стеклянный бокс) */}
-                    <div id="interest-zone-box" style={{display: 'none'}}>
-                        <span className="font-black text-[9px] tracking-widest drop-shadow-md px-2 absolute -top-4">TARGET ZONE</span>
+                    {/* LIVE ЗОНА ИНТЕРЕСА (горизонтальная полоса) */}
+                    <div id="interest-zone-box" style={{display: 'none', flexDirection: 'column', justifyContent: 'center'}}>
+                        <span className="font-black text-[9px] tracking-widest drop-shadow-md pl-2 absolute -top-4 text-white">TARGET ZONE</span>
                     </div>
 
                     {/* Мульти TP-уровни */}
@@ -667,7 +699,7 @@
             const [tradesHistory, setTradesHistory] = useState([]);
             const [pausesHistory, setPausesHistory] = useState([]);
             const [activeTrade, setActiveTrade] = useState(null);
-            const [activeLiquidity, setActiveLiquidity] = useState(null); // ЗОНЫ ЛИКВИДНОСТИ 1H
+            const [activeLiquidity, setActiveLiquidity] = useState(null);
             const [replayTrade, setReplayTrade] = useState(null);
             const [zoneInfo, setZoneInfo] = useState(null);
             const [bestTradeReview, setBestTradeReview] = useState(null);
@@ -681,6 +713,7 @@
             const [currentNews, setCurrentNews] = useState('СИНХРОНИЗАЦИЯ НОВОСТНЫХ ПОТОКОВ...');
             const [livePriceState, setLivePriceState] = useState(0);
             const [chartError, setChartError] = useState(false);
+            const [orderBook, setOrderBook] = useState(null);
 
             const activeTradeRef = useRef(null);
             const tradesHistoryRef = useRef([]);
@@ -916,7 +949,6 @@
                 clearLines();
                 if (!candleSeries.current || !trade) return;
                 try {
-                    // Используем Lightweight Charts только для Entry Line, остальные боксы рендерятся через HTML-Overlay
                     const entryLine = candleSeries.current.createPriceLine({ price: trade.entryPrice, color: trade.isLong ? '#e9d5ff' : '#7e22ce', lineWidth: 2, lineStyle: 0, title: 'ENTRY' });
                     analysisLinesRef.current.push(entryLine);
                 } catch(e) {}
@@ -1009,7 +1041,14 @@
                             startTime: sig.signalTime, score: sig.score, pattern: sig.signalType,
                             stakeAmount: riskAmount, logicalIndex: i, 
                             isPartialClosed: false, trailingSL: sig.slPrice, targetPercent: sig.targetPercent, decision: sig.decision,
-                            isReverse: btEngineState.forcedDirection !== null, announcedTPs: {}
+                            isReverse: btEngineState.forcedDirection !== null, announcedTPs: {},
+                            historicalZone: { // Строгая привязка зоны для бэктеста
+                                type: sig.isLong ? 'SUPPORT' : 'RESISTANCE',
+                                top: sig.isLong ? sig.cLower + (sig.atr * 1.5) : sig.cUpper + (sig.atr * 3.5),
+                                bottom: sig.isLong ? sig.cLower - (sig.atr * 3.5) : sig.cUpper - (sig.atr * 1.5),
+                                startTime: sig.signalTime - 30 * 900, // 30 свечей (широкая горизонтальная полоса)
+                                endTime: sig.signalTime + 10 * 900
+                            }
                         };
                         
                         let pnl = 0; let isPartialClosed = false; let trailingSL = trade.slPrice;
@@ -1272,12 +1311,14 @@
                         if (z && a && currentPrice.current) {
                             const distTop = z.upper - currentPrice.current; const distBot = currentPrice.current - z.lower;
                             let newDetectedZone = null;
-                            if (distTop > -a * 1.5 && distTop < a * 3.5) { newDetectedZone = { type: 'RESISTANCE', top: z.upper, bottom: z.upper - (a*0.5), time: tick.time, atr: a }; } 
-                            else if (distBot > -a * 1.5 && distBot < a * 3.5) { newDetectedZone = { type: 'SUPPORT', top: z.lower + (a*0.5), bottom: z.lower, time: tick.time, atr: a }; }
+                            if (distTop > -a * 1.5 && distTop < a * 3.5) { 
+                                newDetectedZone = { type: 'RESISTANCE', top: z.upper + (a*3.5), bottom: z.upper - (a*1.5), time: tick.time, atr: a }; 
+                            } else if (distBot > -a * 1.5 && distBot < a * 3.5) { 
+                                newDetectedZone = { type: 'SUPPORT', top: z.lower + (a*1.5), bottom: z.lower - (a*3.5), time: tick.time, atr: a }; 
+                            }
                             
                             if (newDetectedZone && (!updatedZone || updatedZone.type !== newDetectedZone.type)) {
                                 updatedZone = newDetectedZone; 
-                                // Голосовое сообщение 1 раз за конкретную зону (используем ID на базе времени)
                                 enqueueSpeech(`Цена подходит к зоне ${updatedZone.type === 'RESISTANCE' ? 'сопротивления' : 'поддержки'}.`, `zone-${updatedZone.type}-${updatedZone.time}`, 300000); 
                                 playSound('zone');
                             } else if (!newDetectedZone && updatedZone) {
@@ -1288,6 +1329,7 @@
                                     updatedZone = null; 
                                 }
                             }
+                            if (updatedZone) updatedZone.time = tick.time; 
                         } else { updatedZone = null; }
 
                         if (currentZoneRef.current !== updatedZone) { currentZoneRef.current = updatedZone; setZoneInfo(updatedZone); }
@@ -1300,8 +1342,6 @@
                                 setAppPhase(engineStateRef.current.forcedDirection ? `СКАНИРОВАНИЕ 15M (ОЖИДАНИЕ ${engineStateRef.current.forcedDirection})` : `СКАНИРОВАНИЕ 1H...`);
                             }
                         }
-
-                        if (appState === 'SCANNING') setChartDataForScanner(liveData15m);
 
                         const activeT = activeTradeRef.current;
                         const evalIdx = liveData15m.length - 2; 
@@ -1316,13 +1356,11 @@
                                     lastEvaluatedCandleTime = evalCandleTime; 
                                     setAppState('PREPARING'); playSound('signal'); setAppPhase(`СИГНАЛ: ${liveSignal.signalType}`);
 
-                                    // Голос 1 раз перед входом
                                     enqueueSpeech(`Сигнал сформирован. 3 секунды на вход.`, `prep-sig-${liveSignal.signalTime}`, 0);
 
                                     for(let w=3; w>0; w--) { setPrepCountdown(w); await sleep(1000); }
                                     setPrepCountdown(null);
                                     
-                                    // Голос 1 раз после входа
                                     enqueueSpeech(`Входим в позицию.`, `entering-${liveSignal.signalTime}`, 0);
 
                                     const newTrade = {
@@ -1330,7 +1368,14 @@
                                         entryPrice: liveSignal.entryPrice, slPrice: liveSignal.slPrice, level1R: liveSignal.level1R, levelTarget: liveSignal.levelTarget, R_value: liveSignal.R_value,
                                         startTime: Date.now() / 1000, status: 'ACTIVE', score: liveSignal.score, pattern: liveSignal.signalType,
                                         isPartialClosed: false, trailingSL: liveSignal.slPrice, warnedSL: false, stakeAmount: calculatedStake, pnl: 0, rPart1: -1, rPart2: -1,
-                                        targetPercent: liveSignal.targetPercent, decision: liveSignal.decision, isReverse: engineStateRef.current.forcedDirection !== null, announcedTPs: {}
+                                        targetPercent: liveSignal.targetPercent, decision: liveSignal.decision, isReverse: engineStateRef.current.forcedDirection !== null, announcedTPs: {},
+                                        historicalZone: {
+                                            type: liveSignal.isLong ? 'SUPPORT' : 'RESISTANCE',
+                                            top: liveSignal.isLong ? liveSignal.cLower + (liveSignal.atr * 1.5) : liveSignal.cUpper + (liveSignal.atr * 3.5),
+                                            bottom: liveSignal.isLong ? liveSignal.cLower - (liveSignal.atr * 3.5) : liveSignal.cUpper - (liveSignal.atr * 1.5),
+                                            startTime: liveSignal.signalTime - 30 * 900,
+                                            endTime: liveSignal.signalTime + 10 * 900
+                                        }
                                     };
                                     
                                     setLiveTrade(newTrade); drawTradeLines(newTrade); 
@@ -1345,29 +1390,33 @@
                             const curP = currentPrice.current; let closed = false; let result = '';
                             const distToSL = Math.abs(curP - activeT.trailingSL); const fullRisk = activeT.R_value;
 
-                            // Умное предупреждение о приближении к SL (Один раз)
                             if (distToSL < fullRisk * 0.25 && !activeT.warnedSL && !activeT.isPartialClosed) {
                                 activeT.warnedSL = true; setSlCountdown(3); 
                                 enqueueSpeech("Приближаемся к стоп-лоссу.", `warn-sl-${activeT.id}`, 0);
                             }
 
-                            // Умное уведомление по TP Уровням
+                            // ИСПРАВЛЕНИЕ: Озвучка уровней тейка
                             const currentProfitPct = activeT.isLong ? ((curP - activeT.entryPrice) / activeT.entryPrice) * 100 : ((activeT.entryPrice - curP) / activeT.entryPrice) * 100;
                             
-                            // Проверяем 1%, 3%, 5% для голоса (как указано в ТЗ)
-                            [1, 3, 5].forEach(level => {
+                            TP_VISUAL_LEVELS.forEach(level => {
                                 if (currentProfitPct >= level && !activeT.announcedTPs[level]) {
                                     activeT.announcedTPs[level] = true;
-                                    setLiveTrade({...activeT}); // Триггер для обновления визуальных стилей в DOM
-                                    enqueueSpeech(`Цена достигла ${level} процент${level === 1 ? 'а' : 'ов'} прибыли.`, `tp-reach-${level}-${activeT.id}`, 0);
+                                    setLiveTrade({...activeT}); 
+                                    enqueueSpeech(`Цена достигла тейк профита ${level} процент${level < 2 ? 'а' : 'ов'}.`, `tp-reach-${level}-${activeT.id}`, 0);
                                 }
                             });
 
                             if (activeT.isLong) {
                                 if (curP <= activeT.trailingSL) { 
                                     closed = true; 
-                                    if (!activeT.isPartialClosed) { activeT.pnl = -activeT.stakeAmount; result = 'LOSS'; activeT.rPart1 = -1; activeT.rPart2 = -1; } 
-                                    else { let p2R = (activeT.trailingSL - activeT.entryPrice) / fullRisk; activeT.rPart2 = p2R; activeT.pnl += (activeT.stakeAmount / 2) * p2R; result = 'WIN (TRAILED)'; }
+                                    if (!activeT.isPartialClosed) { 
+                                        activeT.pnl = -activeT.stakeAmount; result = 'LOSS'; activeT.rPart1 = -1; activeT.rPart2 = -1; 
+                                        // ИСПРАВЛЕНИЕ: Срочное оповещение при пробое SL
+                                        enqueueSpeech("Пробой стоп-лосса. Срочно закройте сделку в течение пяти секунд.", `sl-break-${activeT.id}`, 0);
+                                    } 
+                                    else { 
+                                        let p2R = (activeT.trailingSL - activeT.entryPrice) / fullRisk; activeT.rPart2 = p2R; activeT.pnl += (activeT.stakeAmount / 2) * p2R; result = 'WIN (TRAILED)'; 
+                                    }
                                 }
                                 else if (curP >= activeT.levelTarget) {
                                     closed = true; let finalR = Math.abs(activeT.levelTarget - activeT.entryPrice) / fullRisk;
@@ -1392,8 +1441,14 @@
                             } else { 
                                 if (curP >= activeT.trailingSL) { 
                                     closed = true; 
-                                    if (!activeT.isPartialClosed) { activeT.pnl = -activeT.stakeAmount; result = 'LOSS'; activeT.rPart1 = -1; activeT.rPart2 = -1; } 
-                                    else { let p2R = (activeT.entryPrice - activeT.trailingSL) / fullRisk; activeT.rPart2 = p2R; activeT.pnl += (activeT.stakeAmount / 2) * p2R; result = 'WIN (TRAILED)'; }
+                                    if (!activeT.isPartialClosed) { 
+                                        activeT.pnl = -activeT.stakeAmount; result = 'LOSS'; activeT.rPart1 = -1; activeT.rPart2 = -1; 
+                                        // ИСПРАВЛЕНИЕ: Срочное оповещение при пробое SL
+                                        enqueueSpeech("Пробой стоп-лосса. Срочно закройте сделку в течение пяти секунд.", `sl-break-${activeT.id}`, 0);
+                                    } 
+                                    else { 
+                                        let p2R = (activeT.entryPrice - activeT.trailingSL) / fullRisk; activeT.rPart2 = p2R; activeT.pnl += (activeT.stakeAmount / 2) * p2R; result = 'WIN (TRAILED)'; 
+                                    }
                                 }
                                 else if (curP <= activeT.levelTarget) {
                                     closed = true; let finalR = Math.abs(activeT.entryPrice - activeT.levelTarget) / fullRisk;
