@@ -1180,7 +1180,7 @@
                 for(let trade of histTrades) { 
                     if (!engineActive.current) break;
                     try { if (chartInstance.current) chartInstance.current.timeScale().setVisibleLogicalRange({ from: trade.logicalIndex - 30, to: trade.logicalIndex + 30 }); } catch(e){}
-                    setReplayTrade(trade); playSound('tick'); await sleep(80);
+                    setReplayTrade(trade); playSound('tick'); await sleep(150);
                 }
                 setReplayTrade(null); playSound('playback-end');
                 
@@ -1189,18 +1189,21 @@
                 
                 const totalCount = qualityCount + losses;
                 const resWord = pnlDollars >= 0 ? 'плюс' : 'минус';
-                enqueueSpeech(`Бэктест завершён. Общее количество сделок: ${totalCount}. Из них прибыльных: ${qualityCount}, убыточных: ${losses}. Итоговый результат: ${resWord} ${Math.abs(Math.round(pnlDollars))} долларов.`, 'bt-stats', 0);
+                enqueueSpeech(`Бэктест завершён. Общее количество сделок за последние 30 дней: ${totalCount}. Из них прибыльных: ${qualityCount}, убыточных: ${losses}. Итоговый результат: ${resWord} ${Math.abs(Math.round(pnlDollars))} долларов.`, 'bt-stats', 0);
                 
                 const winningTrades = histTrades.filter(t => t.pnl > 0);
                 if (winningTrades.length > 0) {
                     const sortedWins = [...winningTrades].sort((a,b) => b.pnl - a.pnl);
-                    const topWins = sortedWins.slice(0, Math.max(1, Math.floor(sortedWins.length * 0.2)));
-                    const randomStrongTrade = topWins[Math.floor(Math.random() * topWins.length)];
+                    const bestTrade = sortedWins[0];
 
-                    setAppState('BEST_TRADE_REVIEW'); setAppPhase('ОБЗОР СЛУЧАЙНОЙ КАЧЕСТВЕННОЙ СДЕЛКИ'); setBestTradeReview(randomStrongTrade);
-                    try { if (chartInstance.current) chartInstance.current.timeScale().setVisibleLogicalRange({ from: randomStrongTrade.logicalIndex - 15, to: randomStrongTrade.logicalIndex + 45 }); } catch(e){}
+                    setAppState('BEST_TRADE_REVIEW'); setAppPhase('ЛУЧШАЯ СДЕЛКА МЕСЯЦА'); setBestTradeReview(bestTrade);
+                    try { if (chartInstance.current) chartInstance.current.timeScale().setVisibleLogicalRange({ from: bestTrade.logicalIndex - 15, to: bestTrade.logicalIndex + 45 }); } catch(e){}
                     
-                    await sleep(6000); setBestTradeReview(null);
+                    const tradeDate = new Date(bestTrade.startTime * 1000).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+                    const tradeDir = bestTrade.isLong ? 'ЛОНГ' : 'ШОРТ';
+                    enqueueSpeech(`Лучшая сделка месяца. ${tradeDir}. Дата: ${tradeDate}. Вход: ${Math.round(bestTrade.stakeAmount)} долларов. Прибыль: ${Math.round(bestTrade.pnl)} долларов.`, 'best-trade-speech', 0);
+                    
+                    await sleep(7500); setBestTradeReview(null);
                 }
 
                 try { if (chartInstance.current) chartInstance.current.timeScale().scrollToRealTime(); } catch(e){}
