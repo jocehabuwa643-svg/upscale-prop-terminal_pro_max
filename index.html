@@ -61,7 +61,6 @@
         
         .glass-box-sl { height: 14px !important; background: rgba(245, 158, 11, 0.15); border: 1px dashed rgba(245, 158, 11, 0.8); backdrop-filter: blur(4px); border-radius: 4px; color: #f59e0b; animation: subtle-pulse 2s infinite alternate ease-in-out; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: bold; z-index: 6; }
         
-        /* ОБНОВЛЁННЫЕ ЗОНЫ ИНТЕРЕСА (Градиентные горизонтальные полосы) */
         .zone-interest-res { background: linear-gradient(to right, rgba(239, 68, 68, 0.05), rgba(239, 68, 68, 0.25), rgba(239, 68, 68, 0.05)); border-top: 1px solid rgba(239, 68, 68, 0.6); border-bottom: 1px solid rgba(239, 68, 68, 0.6); backdrop-filter: blur(2px); border-radius: 2px; color: #fca5a5; animation: subtle-pulse 3s infinite alternate ease-in-out; }
         .zone-interest-sup { background: linear-gradient(to right, rgba(16, 185, 129, 0.05), rgba(16, 185, 129, 0.25), rgba(16, 185, 129, 0.05)); border-top: 1px solid rgba(16, 185, 129, 0.6); border-bottom: 1px solid rgba(16, 185, 129, 0.6); backdrop-filter: blur(2px); border-radius: 2px; color: #6ee7b7; animation: subtle-pulse 3s infinite alternate ease-in-out; }
 
@@ -147,14 +146,13 @@
 
         const INITIAL_BALANCE = 5000;
         
-        // --- 1H ФОКУС, РЕВЕРС ПОСЛЕ 2-Х УБЫТКОВ ---
         const RISK_PERCENT = 0.0075; 
         const MAIN_TIMEFRAME = '1H PURE SCALPING (30D)';
         const MAX_DAILY_DD = 0.025; 
-        const MIN_SCORE = 76; // БАЗОВЫЙ ПОРОГ ДЛЯ ВХОДА
+        const MIN_SCORE = 76; // БАЗОВЫЙ ПОРОГ ДЛЯ ВХОДА У ЗОНЫ
         const MIN_QUALITY_PROFIT = 0.80; 
 
-        // Обновлённые уровни Тейк-Профит для оповещений
+        // Уровни Тейк-Профит для оповещений
         const TP_VISUAL_LEVELS = [0.9, 3.0, 5.0];
 
         const FALLBACK_NEWS = [
@@ -287,7 +285,7 @@
         };
 
         function evaluateSignalEngineHybrid(data15m, evalIdx, liqMap1H, atrMap1H, trendMap1H, trendMap4H, regimeMap1H, engineState) {
-            if (evalIdx < 20 || !data15m || !data15m[evalIdx]) return { valid: false, score: 0 };
+            if (evalIdx < 25 || !data15m || !data15m[evalIdx]) return { valid: false, score: 0 };
 
             const curr15m = data15m[evalIdx];
             const prev15m = data15m[evalIdx - 1];
@@ -319,8 +317,6 @@
             
             const inResZone = distTop > -cAtr * 1.5 && distTop < cAtr * 3.5; 
             const inSupZone = distBot > -cAtr * 1.5 && distBot < cAtr * 3.5;
-            
-            if (!inResZone && !inSupZone) return { valid: false, score: 0 };
 
             const body = Math.abs(curr15m.close - curr15m.open);
             const upperWick = curr15m.high - Math.max(curr15m.close, curr15m.open);
@@ -346,28 +342,115 @@
 
             let isLong = false; let isShort = false; let patternName = ''; let finalScore = 0;
             
-            if (shortConfluence >= currentMinScore && engineState.forcedDirection !== 'LONG') {
+            // 1. БАЗОВАЯ ЛОГИКА (ZONE SWEEP + REJECTION)
+            if (shortConfluence >= currentMinScore && engineState.forcedDirection !== 'LONG' && inResZone) {
                 isShort = true; finalScore = shortConfluence;
                 patternName = '1H ZONE SWEEP + REJECTION';
-            } else if (longConfluence >= currentMinScore && engineState.forcedDirection !== 'SHORT') {
+            } else if (longConfluence >= currentMinScore && engineState.forcedDirection !== 'SHORT' && inSupZone) {
                 isLong = true; finalScore = longConfluence;
                 patternName = '1H ZONE SWEEP + REJECTION';
+            }
+
+            // Общие метрики для Импульсов и Отскоков (Knives & Rebounds)
+            let volSum = 0; let sumTr15m = 0;
+            for(let j=1; j<=20; j++) {
+                volSum += data15m[evalIdx-j]?.volume || 0;
+                if(j <= 14) {
+                    let c = data15m[evalIdx-j];
+                    let pc = data15m[evalIdx-j-1] || c;
+                    let tr = Math.max(c.high - c.low, Math.abs(c.high - pc.close), Math.abs(c.low - pc.close));
+                    sumTr15m += tr;
+                }
+            }
+            const avgVol = volSum / 20;
+            const atr15m = sumTr15m / 14;
+
+            // 2. ДОПОЛНИТЕЛЬНАЯ ЛОГИКА: Impulse Knife (Пробой на объеме)
+            if (!isLong && !isShort) {
+                const isVolSpike = curr15m.volume >= avgVol * 1.6;
+                const isBodySpike = body >= atr15m * 1.0; 
+                const highest3 = Math.max(prev15m.high, prev2_15m.high, data15m[evalIdx-3]?.high || 0);
+                const lowest3 = Math.min(prev15m.low, prev2_15m.low, data15m[evalIdx-3]?.low || Infinity);
+
+                // Ограничиваем входы во флете, чтобы избежать ложных пробоев
+                if (isVolSpike && isBodySpike && body >= cAtr * 0.4 && cRegime !== 'RANGING') {
+                    if (isBullish && curr15m.close > highest3 && engineState.forcedDirection !== 'SHORT' && cTrend === 1) {
+                        isLong = true;
+                        patternName = 'IMPULSE KNIFE LONG';
+                        finalScore = 85;
+                    } else if (isBearish && curr15m.close < lowest3 && engineState.forcedDirection !== 'LONG' && cTrend === -1) {
+                        isShort = true;
+                        patternName = 'IMPULSE KNIFE SHORT';
+                        finalScore = 85;
+                    }
+                }
+            }
+
+            // 3. ДОПОЛНИТЕЛЬНАЯ ЛОГИКА: Knife Rebound (Отскок после ножа)
+            if (!isLong && !isShort) {
+                let isVolumeClimax = curr15m.volume > avgVol * 2.0 || prev15m.volume > avgVol * 2.0;
+
+                // Rebound Long (После сильного падения)
+                let recentDrop = (data15m[evalIdx-5]?.high || data15m[evalIdx-3]?.high) - curr15m.low;
+                let dropIsSevere = recentDrop > atr15m * 2.5; 
+                let currentLowerWick = Math.min(curr15m.open, curr15m.close) - curr15m.low;
+                let prevLowerWick = Math.min(prev15m.open, prev15m.close) - prev15m.low;
+                let hasLongTail = currentLowerWick > atr15m * 0.8 || prevLowerWick > atr15m * 0.8;
+                
+                // Проверка выкупа (свеча закрылась сильно выше лоя)
+                let isReboundSweep = isBullish && (curr15m.close - curr15m.low) > (curr15m.high - curr15m.close);
+
+                if (dropIsSevere && isVolumeClimax && hasLongTail && isReboundSweep && engineState.forcedDirection !== 'SHORT') {
+                    isLong = true;
+                    patternName = 'KNIFE REBOUND';
+                    finalScore = 88;
+                }
+
+                // Rebound Short (После сильного роста)
+                let recentClimb = curr15m.high - (data15m[evalIdx-5]?.low || data15m[evalIdx-3]?.low);
+                let climbIsSevere = recentClimb > atr15m * 2.5;
+                let currentUpperWick = curr15m.high - Math.max(curr15m.open, curr15m.close);
+                let prevUpperWick = prev15m.high - Math.max(prev15m.open, prev15m.close);
+                let hasLongTopTail = currentUpperWick > atr15m * 0.8 || prevUpperWick > atr15m * 0.8;
+                
+                // Проверка отторжения (свеча закрылась сильно ниже хая)
+                let isRejectionSweep = isBearish && (curr15m.high - curr15m.close) > (curr15m.close - curr15m.low);
+
+                if (climbIsSevere && isVolumeClimax && hasLongTopTail && isRejectionSweep && engineState.forcedDirection !== 'LONG') {
+                    isShort = true;
+                    patternName = 'KNIFE REBOUND';
+                    finalScore = 88;
+                }
             }
 
             if (!isLong && !isShort) return { valid: false, score: 0 };
 
             const entryPrice = curr15m.close;
-            let rawSlPrice = isLong ? Math.min(curr15m.low, prev15m.low) - (cAtr * 0.15) : Math.max(curr15m.high, prev15m.high) + (cAtr * 0.15);
+            let rawSlPrice;
+            
+            // Динамический стоп в зависимости от типа паттерна
+            if (patternName === 'KNIFE REBOUND') {
+                rawSlPrice = isLong ? Math.min(curr15m.low, prev15m.low) - (atr15m * 0.2) : Math.max(curr15m.high, prev15m.high) + (atr15m * 0.2);
+            } else if (patternName.includes('KNIFE')) {
+                rawSlPrice = isLong ? curr15m.low - (atr15m * 0.1) : curr15m.high + (atr15m * 0.1);
+            } else {
+                rawSlPrice = isLong ? Math.min(curr15m.low, prev15m.low) - (cAtr * 0.15) : Math.max(curr15m.high, prev15m.high) + (cAtr * 0.15);
+            }
             
             const slDistancePercent = Math.abs(entryPrice - rawSlPrice) / entryPrice * 100;
-            if (slDistancePercent < 0.6 || slDistancePercent > 1.5) return { valid: false, score: 0 }; 
+            // Чуть более широкие рамки (0.2% - 3.0%), чтобы позволить работать отскокам и сильным импульсам
+            if (slDistancePercent < 0.2 || slDistancePercent > 3.0) return { valid: false, score: 0 }; 
             
             let slPrice = rawSlPrice; const riskDist = Math.abs(entryPrice - slPrice);
-            const decision = finalScore >= 85 ? 'TRAIL' : 'FIXED';
+            
+            // Для импульсов и отскоков предпочтителен трейлинг, так как они зарождают новое движение
+            let decision = finalScore >= 85 ? 'TRAIL' : 'FIXED';
+            if (patternName.includes('KNIFE')) decision = 'TRAIL';
             
             let targetPercentValue = 1.0;
             if (decision === 'TRAIL') {
-                if (isLong && cRegime === 'BULLISH') targetPercentValue = (finalScore >= 95) ? 5.0 : 3.0;
+                if (patternName === 'KNIFE REBOUND') targetPercentValue = 2.0;
+                else if (isLong && cRegime === 'BULLISH') targetPercentValue = (finalScore >= 95) ? 5.0 : 3.0;
                 else if (isShort && cRegime === 'BEARISH') targetPercentValue = (finalScore >= 95) ? 5.0 : 3.0;
                 else if (cRegime === 'RANGING') targetPercentValue = 2.0;
                 else targetPercentValue = 1.5;
@@ -501,17 +584,44 @@
                                             }
                                         }
                                         
-                                        // ИСПРАВЛЕНИЕ 2: Чистое ценовое движение
+                                        // ИСПРАВЛЕНИЕ 1: Стрелка направления привязана К СДЕЛКЕ, цвет - к прибыли
                                         const percentSpan = box.querySelector('.price-percent-display');
                                         if (percentSpan) {
                                             const pureMove = trade.isLong ? ((priceToUse - trade.entryPrice) / trade.entryPrice) * 100 : ((trade.entryPrice - priceToUse) / trade.entryPrice) * 100;
                                             const isPositive = pureMove >= 0;
-                                            percentSpan.textContent = `${isPositive ? '↗' : '↘'} ${Math.abs(pureMove).toFixed(2)}%`;
+                                            const dirArrow = trade.isLong ? '↗' : '↘'; // Направление сделки
+                                            
+                                            percentSpan.textContent = `${dirArrow} ${Math.abs(pureMove).toFixed(2)}%`;
                                             if (isPositive) {
                                                 percentSpan.className = "price-percent-display flex items-center text-[10px] font-mono font-black text-emerald-400 leading-none whitespace-nowrap";
                                             } else {
                                                 percentSpan.className = "price-percent-display flex items-center text-[10px] font-mono font-black text-rose-400 leading-none whitespace-nowrap";
                                             }
+                                        }
+
+                                        // Визуальное отличие для Impulse Knife и Knife Rebound
+                                        const isKnife = trade.pattern && trade.pattern.includes('IMPULSE KNIFE');
+                                        const isRebound = trade.pattern && trade.pattern.includes('KNIFE REBOUND');
+
+                                        if (isTradeActive) {
+                                            if (isRebound) {
+                                                box.className = `trade-glass-box absolute rounded z-20 overflow-visible transition-colors duration-300 bg-amber-500/20 border border-amber-400/50 border-dashed animate-pulse`;
+                                            } else if (isKnife) {
+                                                box.className = `trade-glass-box absolute rounded z-20 overflow-visible transition-colors duration-300 bg-cyan-500/20 border border-cyan-400/50 border-dashed animate-pulse`;
+                                            } else {
+                                                box.className = `trade-glass-box absolute rounded z-20 overflow-visible transition-colors duration-300 bg-purple-500/20 border border-purple-400/50 border-dashed animate-pulse`;
+                                            }
+                                        } else {
+                                            box.className = `trade-glass-box absolute rounded z-20 overflow-visible transition-colors duration-300 ${trade.result === 'LOSS' ? 'bg-gradient-to-b from-rose-950/70 to-rose-900/40 border border-rose-700/80 shadow-[0_0_15px_rgba(225,29,72,0.3)]' : 'bg-gradient-to-b from-emerald-900/40 to-emerald-800/20 border border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.2)]'}`;
+                                        }
+
+                                        const typeSpan = box.querySelector('.trade-type-span');
+                                        if (typeSpan) {
+                                            if (isRebound) typeSpan.textContent = trade.isLong ? 'REBOUND LONG' : 'REBOUND SHORT';
+                                            else if (isKnife) typeSpan.textContent = trade.isLong ? 'LONG KNIFE' : 'SHORT KNIFE';
+                                            else typeSpan.textContent = trade.isLong ? 'LONG' : 'SHORT';
+                                            
+                                            typeSpan.className = `trade-type-span text-[8px] sm:text-[9px] font-black uppercase tracking-widest leading-none mb-0.5 drop-shadow-md ${isRebound ? 'text-amber-400' : isKnife ? 'text-cyan-400' : (trade.isLong ? 'text-[#e9d5ff]' : 'text-rose-400')}`;
                                         }
                                     }
                                 } else { box.style.display = 'none'; }
@@ -531,7 +641,6 @@
                             } catch (err) { }
                         });
 
-                        // ИСПРАВЛЕНИЕ 1: Зоны интереса отображаются всегда (без isFocusMode)
                         const interestZoneBox = overlayRef.current.querySelector('#interest-zone-box');
                         if (zoneInfo && interestZoneBox) {
                             let xStart = timeScale.timeToCoordinate(zoneInfo.time - 40 * 900);
@@ -547,7 +656,7 @@
                                 interestZoneBox.style.display = 'flex'; 
                                 const top = Math.min(zTop, zBot); 
                                 let height = Math.abs(zBot - zTop);
-                                height = Math.max(4, height); // минимальная высота бокса для видимости
+                                height = Math.max(4, height); 
 
                                 const left = Math.max(0, Math.min(xStart, xEnd)); 
                                 const width = Math.max(20, Math.abs(xEnd - xStart));
@@ -630,19 +739,15 @@
                     </div>
 
                     {allTradesToRender.map((trade, i) => {
-                        const isLoss = trade.result === 'LOSS'; 
-                        const isActive = trade.status === 'ACTIVE';
-                        const boxClass = isActive ? 'bg-purple-500/20 border-purple-400/50 border-dashed animate-pulse' : isLoss ? 'bg-gradient-to-b from-rose-950/70 to-rose-900/40 border border-rose-700/80 shadow-[0_0_15px_rgba(225,29,72,0.3)]' : 'bg-gradient-to-b from-emerald-900/40 to-emerald-800/20 border border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.2)]';
-
                         return (
-                            <div key={trade.id || i} className={`trade-glass-box absolute rounded z-20 overflow-visible transition-colors duration-300 ${boxClass}`} style={{ display: 'none' }} onMouseEnter={(e) => { const rect = e.currentTarget.getBoundingClientRect(); const containerRect = overlayRef.current.getBoundingClientRect(); setHoverPos({ x: rect.left - containerRect.left + rect.width / 2, y: rect.top - containerRect.top }); setHoveredTrade(trade); }} onMouseLeave={() => setHoveredTrade(null)}>
+                            <div key={trade.id || i} className="trade-glass-box absolute rounded z-20 overflow-visible transition-colors duration-300" style={{ display: 'none' }} onMouseEnter={(e) => { const rect = e.currentTarget.getBoundingClientRect(); const containerRect = overlayRef.current.getBoundingClientRect(); setHoverPos({ x: rect.left - containerRect.left + rect.width / 2, y: rect.top - containerRect.top }); setHoveredTrade(trade); }} onMouseLeave={() => setHoveredTrade(null)}>
                                 <div className="entry-dot absolute w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] -ml-1 -mt-1 left-0 z-30"></div>
                                 <div className="exit-dot absolute w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] -mr-1 -mt-1 right-0 z-30"></div>
                                 <div className="absolute inset-0 rounded flex flex-col items-center justify-center p-1 pointer-events-none z-10 opacity-100 overflow-hidden">
-                                    <span className={`text-[8px] sm:text-[9px] font-black uppercase tracking-widest leading-none mb-0.5 drop-shadow-md ${trade.isLong ? 'text-[#e9d5ff]' : 'text-rose-400'}`}>{trade.isLong ? 'LONG' : 'SHORT'}</span>
+                                    <span className="trade-type-span"></span>
                                     
-                                    <div className={`flex items-center gap-1 bg-black/60 px-1.5 py-0.5 rounded backdrop-blur-sm border ${isActive ? 'border-purple-500/20' : (isLoss ? 'border-rose-500/20' : 'border-emerald-500/20')}`}>
-                                        {!isActive && (isLoss ? <span className="text-rose-500 text-[9px] font-black uppercase leading-none drop-shadow-md">SL</span> : <span className="text-emerald-400 text-[10px] font-black leading-none drop-shadow-md">✓</span>)}
+                                    <div className={`flex items-center gap-1 bg-black/60 px-1.5 py-0.5 rounded backdrop-blur-sm border ${trade.status === 'ACTIVE' ? 'border-purple-500/20' : (trade.result === 'LOSS' ? 'border-rose-500/20' : 'border-emerald-500/20')}`}>
+                                        {trade.status !== 'ACTIVE' && (trade.result === 'LOSS' ? <span className="text-rose-500 text-[9px] font-black uppercase leading-none drop-shadow-md">SL</span> : <span className="text-emerald-400 text-[10px] font-black leading-none drop-shadow-md">✓</span>)}
                                         <div className="price-percent-display flex items-center text-[10px] font-mono font-bold text-white leading-none whitespace-nowrap"></div>
                                     </div>
                                 </div>
@@ -656,15 +761,18 @@
                         </div>
                     )}
                     
-                    {/* ИСПРАВЛЕНИЕ 2 & 3: Тултип показывает ЧИСТОЕ ценовое движение мгновенно */}
                     {hoveredTrade && (() => {
                         const hTradeCurP = hoveredTrade.status === 'ACTIVE' ? (currentPriceRef?.current || hoveredTrade.entryPrice) : (hoveredTrade.closePrice || hoveredTrade.entryPrice);
                         const hPureMove = hoveredTrade.isLong ? ((hTradeCurP - hoveredTrade.entryPrice) / hoveredTrade.entryPrice) * 100 : ((hoveredTrade.entryPrice - hTradeCurP) / hoveredTrade.entryPrice) * 100;
+                        const isHovKnife = hoveredTrade.pattern && hoveredTrade.pattern.includes('IMPULSE KNIFE');
+                        const isHovRebound = hoveredTrade.pattern && hoveredTrade.pattern.includes('KNIFE REBOUND');
                         
                         return (
                             <div className="absolute z-50 bg-[#0a0514]/95 border border-purple-500/50 p-4 rounded-xl shadow-[0_15px_40px_rgba(0,0,0,0.9)] pointer-events-none transform -translate-x-1/2 -translate-y-[110%] w-[240px] backdrop-blur-xl" style={{ left: hoverPos.x, top: hoverPos.y }}>
                                 <div className="flex justify-between items-center border-b border-slate-700/80 pb-2 mb-3">
-                                    <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded shadow-inner ${hoveredTrade.isLong ? 'bg-[#e9d5ff]/20 text-[#e9d5ff] border border-[#e9d5ff]/30' : 'bg-rose-900/60 text-rose-300 border border-rose-500/30'}`}>{hoveredTrade.isLong ? 'LONG 1H/15M' : 'SHORT 1H/15M'}</span>
+                                    <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded shadow-inner ${isHovRebound ? 'bg-amber-900/60 text-amber-300 border border-amber-500/30' : isHovKnife ? 'bg-cyan-900/60 text-cyan-300 border border-cyan-500/30' : (hoveredTrade.isLong ? 'bg-[#e9d5ff]/20 text-[#e9d5ff] border border-[#e9d5ff]/30' : 'bg-rose-900/60 text-rose-300 border border-rose-500/30')}`}>
+                                        {isHovRebound ? (hoveredTrade.isLong ? 'REBOUND LONG' : 'REBOUND SHORT') : isHovKnife ? (hoveredTrade.isLong ? 'LONG KNIFE' : 'SHORT KNIFE') : (hoveredTrade.isLong ? 'LONG 1H/15M' : 'SHORT 1H/15M')}
+                                    </span>
                                     <span className={`text-xs font-black ${hoveredTrade.pnl > 0 ? 'text-emerald-400 drop-shadow-[0_0_5px_rgba(52,211,153,0.8)]' : hoveredTrade.pnl < 0 ? 'text-rose-400 drop-shadow-[0_0_5px_rgba(225,29,72,0.8)]' : 'text-amber-400 animate-pulse'}`}>{hoveredTrade.pnl > 0 ? 'ПРИБЫЛЬ' : hoveredTrade.pnl < 0 ? 'УБЫТОК' : 'АКТИВНА'}</span>
                                 </div>
                                 <div className="flex flex-col gap-1.5 text-[11px] font-mono text-slate-300">
@@ -1221,7 +1329,6 @@
                 let liveData15m = [...data15m]; let liveData1h = [...data1h]; let liveData4h = [...data4h];
                 let lastSlowFetch = 0; let lastObFetch = 0; 
                 
-                // ИСПРАВЛЕНИЕ 1 & 4: Инициализация currentPrice сразу после бэктеста, чтобы зоны отобразились мгновенно
                 let lastCandle = liveData15m[liveData15m.length - 1];
                 let latestLiveCandle = { ...lastCandle };
                 currentPrice.current = latestLiveCandle.close; 
@@ -1320,7 +1427,6 @@
                             setActiveLiquidity({ upper: z.upper, lower: z.lower, atr: a });
                         }
                         
-                        // ИСПРАВЛЕНИЕ 1, 3 & 4: Немедленный расчет зон и озвучка в live-режиме
                         let updatedZone = currentZoneRef.current;
                         if (z && a && currentPrice.current) {
                             const distTop = z.upper - currentPrice.current; 
@@ -1388,7 +1494,16 @@
                                     lastEvaluatedCandleTime = evalCandleTime; 
                                     setAppState('PREPARING'); playSound('signal'); setAppPhase(`СИГНАЛ: ${liveSignal.signalType}`);
 
-                                    enqueueSpeech(`Сигнал сформирован. 3 секунды на вход.`, `prep-sig-${liveSignal.signalTime}`, 0);
+                                    // Обновленная голосовая озвучка для Импульсов и Отскоков
+                                    if (liveSignal.signalType === 'KNIFE REBOUND') {
+                                        const dir = liveSignal.isLong ? 'вниз' : 'вверх';
+                                        enqueueSpeech(`Нож ${dir} выдохся. Возможен отскок. 3 секунды на вход.`, `prep-sig-${liveSignal.signalTime}`, 0);
+                                    } else if (liveSignal.signalType.includes('KNIFE')) {
+                                        const dir = liveSignal.isLong ? 'LONG' : 'SHORT';
+                                        enqueueSpeech(`Формируется импульсное движение. Возможен ${dir} knife. 3 секунды на вход.`, `prep-sig-${liveSignal.signalTime}`, 0);
+                                    } else {
+                                        enqueueSpeech(`Сигнал сформирован. 3 секунды на вход.`, `prep-sig-${liveSignal.signalTime}`, 0);
+                                    }
 
                                     for(let w=3; w>0; w--) { setPrepCountdown(w); await sleep(1000); }
                                     setPrepCountdown(null);
@@ -1626,7 +1741,7 @@
 
                     <main className="flex-1 flex p-5 gap-5 overflow-hidden z-10 flex-col xl:flex-row">
                         <div className="flex-1 flex flex-col gap-5 overflow-hidden h-full relative">
-                            {/* ИСПРАВЛЕНИЕ: Чистый ход цены в обзоре лучшей сделки */}
+                            {/* Чистый ход цены в обзоре лучшей сделки */}
                             {appState === 'BEST_TRADE_REVIEW' && bestTradeReview && (() => {
                                 const bestTradePureMove = bestTradeReview.isLong ? ((bestTradeReview.closePrice - bestTradeReview.entryPrice) / bestTradeReview.entryPrice) * 100 : ((bestTradeReview.entryPrice - bestTradeReview.closePrice) / bestTradeReview.entryPrice) * 100;
                                 return (
@@ -1703,12 +1818,15 @@
                                         livePnL = activeTrade.stakeAmount * (activeTrade.isLong ? (curP - activeTrade.entryPrice) : (activeTrade.entryPrice - curP)) / activeTrade.R_value;
                                     }
 
+                                    const isTradeRebound = activeTrade.pattern && activeTrade.pattern.includes('KNIFE REBOUND');
+                                    const isTradeKnife = activeTrade.pattern && activeTrade.pattern.includes('IMPULSE KNIFE');
+
                                     return (
                                         <div className="flex flex-col gap-1.5 text-[11px] font-mono mt-1 h-full">
                                             <div className="flex justify-between items-center mb-1">
                                                 <div className="flex items-center gap-1">
-                                                    <span className={`font-black uppercase px-2 py-0.5 rounded shadow-inner ${activeTrade.isLong ? 'bg-[#e9d5ff]/20 text-[#e9d5ff] border border-[#e9d5ff]/30' : 'bg-rose-900/50 text-rose-400 border border-rose-500/30'}`}>
-                                                        {activeTrade.type} 15M
+                                                    <span className={`font-black uppercase px-2 py-0.5 rounded shadow-inner ${isTradeRebound ? 'bg-amber-900/50 text-amber-400 border border-amber-500/30' : isTradeKnife ? 'bg-cyan-900/50 text-cyan-400 border border-cyan-500/30' : (activeTrade.isLong ? 'bg-[#e9d5ff]/20 text-[#e9d5ff] border border-[#e9d5ff]/30' : 'bg-rose-900/50 text-rose-400 border border-rose-500/30')}`}>
+                                                        {isTradeRebound ? 'REBOUND' : isTradeKnife ? 'KNIFE' : activeTrade.type} 15M
                                                     </span>
                                                     {activeTrade.isReverse && <span className="bg-amber-600/30 text-amber-400 px-1.5 py-0.5 rounded text-[8px] font-black shadow-inner">REV</span>}
                                                 </div>
@@ -1787,17 +1905,27 @@
                             <div className="flex-1 luxury-card rounded-2xl p-4 flex flex-col overflow-hidden">
                                 <h3 className="text-[11px] font-black tracking-widest text-slate-200 uppercase oswald-font mb-2 border-b border-purple-500/30 pb-1.5 flex justify-between"><span>Журнал (15M)</span><span className="text-emerald-500/70 text-[9px] border border-emerald-500/30 px-1.5 rounded bg-emerald-900/20">ВЕСЬ ПОТОК (100%)</span></h3>
                                 <div className="flex-1 overflow-y-auto journal-scroll pr-2 flex flex-col gap-2">
-                                    {tradesHistory.length === 0 ? (<div className="text-[10px] text-slate-500 text-center font-mono mt-4">Ожидание сделок...</div>) : tradesHistory.map((t, idx) => (
-                                        <div key={t.id || idx} className={`p-2.5 rounded-xl border flex flex-col gap-1.5 transition-all cursor-default group ${t.pnl > 0 ? 'bg-[#0f182b]/80 border-emerald-500/20 hover:border-emerald-500/40' : 'bg-[#1a0f14]/80 border-rose-500/10 hover:border-rose-500/30'}`}>
-                                            <div className="flex justify-between items-center">
-                                                <div className="flex gap-2 items-center"><span className={`text-[9px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded shadow-inner ${t.type === 'LONG' ? 'bg-[#e9d5ff]/20 text-[#e9d5ff] border border-[#e9d5ff]/30' : 'bg-rose-900/40 text-rose-400 border border-rose-500/20'}`}>{t.type}</span>{t.isReverse && <span className="bg-amber-600/30 text-amber-400 px-1 py-0.5 rounded text-[7px] font-black shadow-inner">REV</span>}<span className="text-[8px] text-slate-400 font-bold truncate max-w-[80px]" title={t.pattern}>{t.pattern}</span></div>
-                                                <div className="flex flex-col items-end"><span className={`text-[11px] font-black ${t.pnl > 0 ? 'text-emerald-400' : 'text-rose-500'}`}>{t.pnl > 0 ? '+' : ''}{t.pnl?.toFixed(2)}$</span><span className={`text-[9px] font-bold ${t.pnl > 0 ? 'text-emerald-500' : 'text-rose-600'}`}>{t.pnl > 0 ? '+' : ''}{t.effectivePricePercent?.toFixed(2)}%</span></div>
+                                    {tradesHistory.length === 0 ? (<div className="text-[10px] text-slate-500 text-center font-mono mt-4">Ожидание сделок...</div>) : tradesHistory.map((t, idx) => {
+                                        const isKnife = t.pattern && t.pattern.includes('IMPULSE KNIFE');
+                                        const isRebound = t.pattern && t.pattern.includes('KNIFE REBOUND');
+                                        return (
+                                            <div key={t.id || idx} className={`p-2.5 rounded-xl border flex flex-col gap-1.5 transition-all cursor-default group ${t.pnl > 0 ? 'bg-[#0f182b]/80 border-emerald-500/20 hover:border-emerald-500/40' : 'bg-[#1a0f14]/80 border-rose-500/10 hover:border-rose-500/30'}`}>
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex gap-2 items-center">
+                                                        <span className={`text-[9px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded shadow-inner ${isRebound ? 'bg-amber-900/40 text-amber-400 border border-amber-500/30' : isKnife ? 'bg-cyan-900/40 text-cyan-400 border border-cyan-500/30' : (t.type === 'LONG' ? 'bg-[#e9d5ff]/20 text-[#e9d5ff] border border-[#e9d5ff]/30' : 'bg-rose-900/40 text-rose-400 border border-rose-500/20')}`}>
+                                                            {isRebound ? 'REBOUND' : isKnife ? 'KNIFE' : t.type}
+                                                        </span>
+                                                        {t.isReverse && <span className="bg-amber-600/30 text-amber-400 px-1 py-0.5 rounded text-[7px] font-black shadow-inner">REV</span>}
+                                                        <span className="text-[8px] text-slate-400 font-bold truncate max-w-[80px]" title={t.pattern}>{t.pattern}</span>
+                                                    </div>
+                                                    <div className="flex flex-col items-end"><span className={`text-[11px] font-black ${t.pnl > 0 ? 'text-emerald-400' : 'text-rose-500'}`}>{t.pnl > 0 ? '+' : ''}{t.pnl?.toFixed(2)}$</span><span className={`text-[9px] font-bold ${t.pnl > 0 ? 'text-emerald-500' : 'text-rose-600'}`}>{t.pnl > 0 ? '+' : ''}{t.effectivePricePercent?.toFixed(2)}%</span></div>
+                                                </div>
+                                                <div className="flex justify-between text-[9px] font-mono text-slate-500 group-hover:text-slate-400 transition-colors">
+                                                    <span>IN: {formatPrice(t.entryPrice)}</span><div className="flex gap-2">{t.result.includes('WIN') ? <span className="text-emerald-400/80 font-bold">КАЧЕСТВО</span> : <span className="text-rose-500">SL</span>}</div>
+                                                </div>
                                             </div>
-                                            <div className="flex justify-between text-[9px] font-mono text-slate-500 group-hover:text-slate-400 transition-colors">
-                                                <span>IN: {formatPrice(t.entryPrice)}</span><div className="flex gap-2">{t.result.includes('WIN') ? <span className="text-emerald-400/80 font-bold">КАЧЕСТВО</span> : <span className="text-rose-500">SL</span>}</div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        )
+                                    })}
                                 </div>
                             </div>
                         </div>
@@ -1830,7 +1958,6 @@
             }
         };
 
-        // Запуск с небольшой задержкой гарантирует, что DOM готов после отработки Babel
         setTimeout(startApp, 50);
 
     </script>
